@@ -55,6 +55,7 @@ Este guia orienta passo a passo a publicação do **Monetra Finance** em ambient
 | `TELEGRAM_BOT_TOKEN` | Token do Bot gerado pelo BotFather | Telegram `@BotFather` |
 | `TELEGRAM_WEBHOOK_SECRET` | String aleatória para validar chamadas do Telegram | Crie uma senha segura (ex: `sec_monetra_99x1`) |
 | `VITE_TELEGRAM_BOT_USERNAME` | Username do seu bot sem o `@` | Telegram `@BotFather` (ex: `MonetraBot`) |
+| `CRON_SECRET` | Segredo que autoriza o agendador a chamar `/api/cron/tick` | Gere uma string longa e aleatória (ex: `openssl rand -hex 32`) |
 
 5. Clique em **Deploy**. A Vercel criará o build de produção e disponibilizará sua URL pública (ex: `https://monetra-finance.vercel.app`).
 
@@ -79,10 +80,68 @@ Para instruções detalhadas de configuração do Bot, consulte [TELEGRAM_SETUP.
 
 ---
 
+## 5.1 Passo 5: Migration de memória, contas fixas e notificações
+
+Aplique manualmente no **SQL Editor** do Supabase (a migration é apenas aditiva, não remove dados):
+
+`supabase/migrations/20261014000000_agent_memory_bills_notifications.sql`
+
+Ela cria `agent_messages` (memória do agente), `recurring_bills` (receitas/despesas fixas), `notifications` (sino do app),
+a coluna `transactions.recurring_bill_id` e as preferências de lembrete em `profiles`
+(`daily_report_enabled`, `daily_report_hour`, `bill_reminder_days`, `card_reminder_days`).
+
+## 5.2 Passo 6: Agendador de lembretes e relatório diário (Supabase pg_cron)
+
+O endpoint `POST /api/cron/tick` roda **de hora em hora**: gera as ocorrências das contas fixas, cria os lembretes
+(contas e faturas de cartão), o relatório diário no horário configurado por cada usuário e envia o que estiver pendente ao Telegram.
+O endpoint exige o header `x-cron-secret` igual à variável `CRON_SECRET`.
+
+No **SQL Editor** do Supabase (substitua a URL e o segredo; o segredo fica no Vault, não em arquivos do repositório):
+
+```sql
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+
+-- guarda o segredo no Vault do Supabase
+select vault.create_secret('<MESMO_VALOR_DE_CRON_SECRET>', 'monetra_cron_secret');
+
+select cron.schedule(
+  'monetra-tick',
+  '0 * * * *',
+  $$
+  select net.http_post(
+    url := 'https://seu-app.vercel.app/api/cron/tick',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'monetra_cron_secret')
+    ),
+    body := '{}'::jsonb
+  );
+  $$
+);
+```
+
+Teste manual: `curl -X POST -H "x-cron-secret: <CRON_SECRET>" https://seu-app.vercel.app/api/cron/tick`
+(resposta esperada: `{"ok":true,"occurrencesCreated":0,"notificationsCreated":0,"telegramSent":0}`; sem o header, `401`).
+
+Para pausar: `select cron.unschedule('monetra-tick');`
+
+## 5.3 Regras de negócio relevantes (cartão e contas fixas)
+
+- **Fechamento do cartão:** compra feita **no dia do fechamento ou depois** entra na fatura do **mês seguinte**; antes do fechamento, na fatura atual.
+- **Vencimento:** se o dia de vencimento é maior que o de fechamento, vence no mesmo mês do fechamento; caso contrário, no mês seguinte.
+- **Parcelas no cartão** são gravadas com `transaction_date` = `due_date` = vencimento da fatura em que caem (`is_paid = false` no agente).
+- **Status de contas:** pago = verde, vence hoje = amarelo, atrasado = vermelho.
+- **Lembretes:** conta fixa/pendente avisa `bill_reminder_days` antes (padrão 1), no dia e quando atrasa; fatura do cartão avisa `card_reminder_days` antes (padrão 2).
+
+---
+
 ## 6. Checklist de Segurança
 
 - [x] O frontend SPA **não** contém chaves privadas (`SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY` ou `TELEGRAM_BOT_TOKEN`).
 - [x] Todas as tabelas do Supabase possuem RLS (`ENABLE ROW LEVEL SECURITY`) com isolamento por `user_id = auth.uid()`.
 - [x] O webhook do Telegram valida o header `x-telegram-bot-api-secret-token` em todas as requisições recebidas.
 - [x] Idempotência ativada na tabela `telegram_updates` contra reenvio repetido de mensagens.
+- [x] `/api/cron/tick` exige `x-cron-secret` e as notificações usam `dedupe_key` único para não duplicar avisos.
+- [x] `/api/ai/chat` valida o JWT do Supabase no servidor (a identidade nunca vem do corpo da requisição).
 - [x] Arquivos CSV de importação são validados no cliente (tamanho limite de 5MB) e inspecionados em prévia antes de qualquer gravação.

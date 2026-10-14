@@ -6,6 +6,8 @@ const testFiles = [
   'tests/telegramParser.test.ts',
   'tests/fileParser.test.ts',
   'tests/whisperParser.test.ts',
+  'tests/creditCardRules.test.ts',
+  'tests/billRules.test.ts',
 ];
 
 let failed = false;

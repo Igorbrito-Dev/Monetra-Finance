@@ -93,6 +93,8 @@ O fluxo de importação deve mostrar uma prévia, permitir mapear colunas quando
 
 Planeja-se suportar compras parceladas, faturas, vencimentos, pagamentos e despesas recorrentes. A modelagem deve distinguir compras e despesas efetivas de pagamentos de fatura, evitando contabilizar a mesma despesa duas vezes. Compromissos futuros devem ser apresentados separadamente dos valores já realizados quando isso for relevante.
 
+**Implementado:** o agente (Telegram e chat do app) mantém memória da conversa, registra vários lançamentos por mensagem e pergunta o que faltar (ex.: qual cartão). Compras parceladas no crédito caem na fatura correta conforme fechamento/vencimento do cartão (compra no dia do fechamento ou depois vai para a próxima fatura). Há contas fixas mensais com status por cor (verde pago, amarelo vence hoje, vermelho atrasado), anotações nos lançamentos, sino de notificações e lembretes/relatório diário no Telegram, configuráveis em **Mais**. Veja `docs/DEPLOYMENT.md` (seções 5.1 a 5.3) para a migration e o agendador.
+
 ## Segurança e privacidade
 
 - Segredos ficam em variáveis de ambiente no backend, nunca no código do navegador.

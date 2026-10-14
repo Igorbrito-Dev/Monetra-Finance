@@ -4,7 +4,8 @@ import { useAccounts } from '../../hooks/useAccounts';
 import { useCreditCards } from '../../hooks/useCreditCards';
 import { useCategories } from '../../hooks/useCategories';
 import type { TransactionType, PaymentMethod, Category, Account, CreditCard } from '../../types/database';
-import { X, Layers, ShieldCheck } from 'lucide-react';
+import { getInvoiceForPurchase, formatIsoDateBR } from '../../lib/creditCardRules';
+import { X, Layers, ShieldCheck, CalendarClock } from 'lucide-react';
 
 interface TransactionModalProps {
   isOpen: boolean;
@@ -22,6 +23,8 @@ interface TransactionModalProps {
     is_invoice_payment?: boolean;
     installments_count?: number;
     notes?: string;
+    card_closing_day?: number;
+    card_due_day?: number;
   }) => Promise<void>;
   categories?: Category[];
   accounts?: Account[];
@@ -65,6 +68,11 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     type === 'expense' ? c.type === 'expense' : c.type === 'income'
   );
 
+  // Prévia da fatura em que a compra no crédito vai cair (regra de fechamento do cartão)
+  const selectedCard = paymentMethod === 'credit' && !isInvoicePayment ? cards.find((c) => c.id === cardId) : undefined;
+  const invoicePreview =
+    selectedCard && date ? getInvoiceForPurchase(date, selectedCard.closing_day, selectedCard.due_day) : null;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -84,7 +92,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         is_paid: isPaid,
         is_invoice_payment: isInvoicePayment,
         installments_count: isInstallment ? installmentsCount : 1,
-        notes: notes || undefined,
+        notes: notes.trim() || undefined,
+        card_closing_day: selectedCard?.closing_day,
+        card_due_day: selectedCard?.due_day,
       });
 
       // Reset form
@@ -279,6 +289,17 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             </div>
           )}
 
+          {invoicePreview && (
+            <div className="p-3 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-800 text-xs flex items-start gap-2">
+              <CalendarClock className="w-4 h-4 flex-shrink-0 text-indigo-600 mt-0.5" />
+              <span>
+                Esta compra cai na fatura que <strong>fecha em {formatIsoDateBR(invoicePreview.closingDate)}</strong> e{' '}
+                <strong>vence em {formatIsoDateBR(invoicePreview.dueDate)}</strong>
+                {isInstallment ? ' (1ª parcela; as demais nos meses seguintes).' : '.'}
+              </span>
+            </div>
+          )}
+
           {/* Categoria */}
           {!isInvoicePayment && (
             <div>
@@ -337,6 +358,21 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               )}
             </div>
           )}
+
+          {/* Anotações extras */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Anotações <span className="font-normal text-slate-400">(opcional)</span>
+            </label>
+            <textarea
+              rows={2}
+              maxLength={500}
+              placeholder="Ex: presente de aniversário, dividido com a Ana..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs sm:text-sm placeholder-slate-400 focus:outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 resize-none"
+            />
+          </div>
 
           {/* Status Efetivado */}
           <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200">

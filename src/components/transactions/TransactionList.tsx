@@ -4,6 +4,7 @@ import { useCategories } from '../../hooks/useCategories';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useCreditCards } from '../../hooks/useCreditCards';
 import { formatCurrency, formatDate } from '../../lib/utils';
+import { getBillStatusStyle } from '../../lib/billStatusStyles';
 import { Button } from '../ui/Button';
 import { TransactionModal } from './TransactionModal';
 import { ImportModal } from '../import/ImportModal';
@@ -275,6 +276,7 @@ export const TransactionList: React.FC = () => {
                     const isIncome = tx.type === 'income';
                     const category = getCategory(tx.category_id);
                     const originName = getAccountOrCardName(tx);
+                    const statusStyle = getBillStatusStyle(tx.due_date ?? tx.transaction_date, tx.is_paid);
 
                     return (
                       <div
@@ -326,8 +328,14 @@ export const TransactionList: React.FC = () => {
                             >
                               {isIncome ? '+' : '-'} {formatCurrency(tx.amount)}
                             </span>
-                            <span className="text-[10px] text-slate-400 block mt-0.5">
-                              {tx.is_paid ? 'Efetivado' : 'Pendente'}
+                            <span
+                              className={`text-[10px] font-semibold block mt-0.5 ${statusStyle.text}`}
+                            >
+                              {tx.is_paid
+                                ? 'Efetivado'
+                                : statusStyle.status === 'upcoming'
+                                  ? 'Pendente'
+                                  : statusStyle.label}
                             </span>
                           </div>
 
@@ -378,12 +386,40 @@ export const TransactionList: React.FC = () => {
                 <span className="text-slate-500">Origem / Destino:</span>
                 <span className="font-semibold text-slate-800">{getAccountOrCardName(selectedTx)}</span>
               </div>
+              {selectedTx.due_date && (
+                <div className="flex justify-between py-1">
+                  <span className="text-slate-500">Vencimento:</span>
+                  <span className="font-semibold text-slate-800">{formatDate(selectedTx.due_date)}</span>
+                </div>
+              )}
               <div className="flex justify-between py-1">
                 <span className="text-slate-500">Status:</span>
-                <span className={`font-semibold ${selectedTx.is_paid ? 'text-emerald-600' : 'text-amber-600'}`}>
-                  {selectedTx.is_paid ? 'Pago / Efetivado' : 'Aguardando Pagamento'}
-                </span>
+                {(() => {
+                  const style = getBillStatusStyle(
+                    selectedTx.due_date ?? selectedTx.transaction_date,
+                    selectedTx.is_paid
+                  );
+                  return (
+                    <span className={`font-semibold ${style.text}`}>
+                      {selectedTx.is_paid
+                        ? 'Pago / Efetivado'
+                        : style.status === 'overdue'
+                          ? 'Atrasado'
+                          : style.status === 'due_today'
+                            ? 'Vence hoje'
+                            : 'Aguardando Pagamento'}
+                    </span>
+                  );
+                })()}
               </div>
+              {selectedTx.notes && (
+                <div className="py-1">
+                  <span className="text-slate-500 block mb-1">Anotações:</span>
+                  <p className="text-slate-700 text-xs bg-slate-50 border border-slate-100 rounded-xl p-2.5 whitespace-pre-wrap break-words">
+                    {selectedTx.notes}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Actions: Toggle Paid & Delete */}
@@ -392,7 +428,7 @@ export const TransactionList: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={async () => {
-                  await togglePaidStatus(selectedTx.id, !selectedTx.is_paid);
+                  await togglePaidStatus(selectedTx.id, selectedTx.is_paid);
                   setSelectedTx(null);
                 }}
                 className="flex-1 justify-center text-xs"

@@ -6,6 +6,7 @@ import { useCreditCards } from '../../hooks/useCreditCards';
 import { useTransactions } from '../../hooks/useTransactions';
 import { TelegramIntegrationModal } from '../telegram/TelegramIntegrationModal';
 import { ImportModal } from '../import/ImportModal';
+import { NotificationSettings } from './NotificationSettings';
 import {
   Target,
   Bot,
@@ -16,10 +17,14 @@ import {
   ChevronRight,
   Shield,
   CheckCircle2,
+  MessageSquare,
+  CalendarClock,
 } from 'lucide-react';
 
 interface MoreViewProps {
-  onNavigateToTab: (tab: 'overview' | 'transactions' | 'accounts' | 'cards' | 'categories' | 'reports') => void;
+  onNavigateToTab: (
+    tab: 'overview' | 'transactions' | 'accounts' | 'cards' | 'categories' | 'reports' | 'assistant' | 'bills'
+  ) => void;
 }
 
 export const MoreView: React.FC<MoreViewProps> = ({ onNavigateToTab }) => {
@@ -75,8 +80,49 @@ export const MoreView: React.FC<MoreViewProps> = ({ onNavigateToTab }) => {
         <ChevronRight className="w-5 h-5 text-slate-300" />
       </div>
 
+      {/* Preferências de notificação */}
+      <NotificationSettings />
+
       {/* 3. MENU ITEMS LIST (Matches Screen 8 of Reference) */}
       <div className="bg-white border border-slate-100 rounded-3xl divide-y divide-slate-100 shadow-xs overflow-hidden">
+        {/* Item: Assistente IA (chat) */}
+        <button
+          onClick={() => onNavigateToTab('assistant')}
+          className="w-full flex items-center justify-between p-4 hover:bg-slate-50/70 transition-colors cursor-pointer text-left group"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+              <MessageSquare className="w-5 h-5 stroke-[2.2]" />
+            </div>
+            <div>
+              <span className="text-sm font-bold text-slate-800 block">Assistente IA</span>
+              <span className="text-xs text-slate-400 block">
+                Registre gastos conversando, com memória e parcelas no cartão
+              </span>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all" />
+        </button>
+
+        {/* Item: Contas fixas */}
+        <button
+          onClick={() => onNavigateToTab('bills')}
+          className="w-full flex items-center justify-between p-4 hover:bg-slate-50/70 transition-colors cursor-pointer text-left group"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center flex-shrink-0">
+              <CalendarClock className="w-5 h-5 stroke-[2.2]" />
+            </div>
+            <div>
+              <span className="text-sm font-bold text-slate-800 block">Contas fixas</span>
+              <span className="text-xs text-slate-400 block">
+                Receitas e despesas mensais com lembrete de vencimento
+              </span>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all" />
+        </button>
+
         {/* Item 1: Metas Financeiras (Teto Orçamentário) */}
         <button
           onClick={() => onNavigateToTab('overview')}

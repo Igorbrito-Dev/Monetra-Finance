@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Building2,
   CreditCard,
+  Download,
 } from 'lucide-react';
 
 interface ImportModalProps {
@@ -213,6 +214,22 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                 className="hidden"
               />
             </label>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="text-xs text-slate-600">
+                <span className="font-bold text-slate-800 block">Não tem um arquivo pronto?</span>
+                Baixe a planilha modelo (colunas <strong>Data</strong>; <strong>Descrição</strong>; <strong>Valor</strong>).
+                Use valor negativo para despesas; entradas como salário ou "Pix recebido" são reconhecidas como receita.
+              </div>
+              <a
+                href="/modelo-importacao-extrato.csv"
+                download="modelo-importacao-extrato.csv"
+                className="inline-flex items-center justify-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:border-emerald-300 hover:text-emerald-700 shadow-xs whitespace-nowrap"
+              >
+                <Download className="w-4 h-4" />
+                Baixar modelo (.csv)
+              </a>
+            </div>
 
             <div className="flex items-center justify-between text-xs text-slate-400 px-2">
               <span className="flex items-center gap-1.5 font-medium">

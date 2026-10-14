@@ -10,6 +10,8 @@ export type AccountType = 'checking' | 'savings' | 'investment' | 'cash' | 'othe
 export type TransactionType = 'income' | 'expense' | 'transfer';
 export type PaymentMethod = 'pix' | 'credit' | 'debit' | 'cash' | 'transfer' | 'boleto' | 'other';
 export type SourceFileType = 'csv' | 'ofx' | 'xlsx' | 'other';
+export type AgentChannel = 'telegram' | 'web';
+export type NotificationType = 'bill_due' | 'bill_today' | 'bill_overdue' | 'card_invoice' | 'daily_report';
 
 export type Database = {
   public: {
@@ -22,6 +24,10 @@ export type Database = {
           telegram_chat_id: number | null;
           preferred_currency: string;
           monthly_budget: number | null;
+          daily_report_enabled: boolean;
+          daily_report_hour: number;
+          bill_reminder_days: number;
+          card_reminder_days: number;
           created_at: string;
           updated_at: string;
         };
@@ -32,6 +38,10 @@ export type Database = {
           telegram_chat_id?: number | null;
           preferred_currency?: string;
           monthly_budget?: number | null;
+          daily_report_enabled?: boolean;
+          daily_report_hour?: number;
+          bill_reminder_days?: number;
+          card_reminder_days?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -42,6 +52,10 @@ export type Database = {
           telegram_chat_id?: number | null;
           preferred_currency?: string;
           monthly_budget?: number | null;
+          daily_report_enabled?: boolean;
+          daily_report_hour?: number;
+          bill_reminder_days?: number;
+          card_reminder_days?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -192,6 +206,7 @@ export type Database = {
           is_invoice_payment: boolean;
           external_id: string | null;
           notes: string | null;
+          recurring_bill_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -216,6 +231,7 @@ export type Database = {
           is_invoice_payment?: boolean;
           external_id?: string | null;
           notes?: string | null;
+          recurring_bill_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -240,6 +256,7 @@ export type Database = {
           is_invoice_payment?: boolean;
           external_id?: string | null;
           notes?: string | null;
+          recurring_bill_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -271,6 +288,129 @@ export type Database = {
           file_hash?: string | null;
           source_type?: SourceFileType;
           total_records?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      agent_messages: {
+        Row: {
+          id: string;
+          user_id: string;
+          channel: AgentChannel;
+          role: 'user' | 'assistant';
+          content: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          channel: AgentChannel;
+          role: 'user' | 'assistant';
+          content: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          channel?: AgentChannel;
+          role?: 'user' | 'assistant';
+          content?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      recurring_bills: {
+        Row: {
+          id: string;
+          user_id: string;
+          type: 'income' | 'expense';
+          description: string;
+          amount: number;
+          day_of_month: number;
+          category_id: string | null;
+          account_id: string | null;
+          credit_card_id: string | null;
+          payment_method: PaymentMethod;
+          notes: string | null;
+          start_date: string;
+          end_date: string | null;
+          active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          type: 'income' | 'expense';
+          description: string;
+          amount: number;
+          day_of_month: number;
+          category_id?: string | null;
+          account_id?: string | null;
+          credit_card_id?: string | null;
+          payment_method?: PaymentMethod;
+          notes?: string | null;
+          start_date?: string;
+          end_date?: string | null;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          type?: 'income' | 'expense';
+          description?: string;
+          amount?: number;
+          day_of_month?: number;
+          category_id?: string | null;
+          account_id?: string | null;
+          credit_card_id?: string | null;
+          payment_method?: PaymentMethod;
+          notes?: string | null;
+          start_date?: string;
+          end_date?: string | null;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      notifications: {
+        Row: {
+          id: string;
+          user_id: string;
+          type: NotificationType;
+          title: string;
+          body: string;
+          link_tab: string | null;
+          dedupe_key: string;
+          read_at: string | null;
+          telegram_sent_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          type: NotificationType;
+          title: string;
+          body: string;
+          link_tab?: string | null;
+          dedupe_key: string;
+          read_at?: string | null;
+          telegram_sent_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          type?: NotificationType;
+          title?: string;
+          body?: string;
+          link_tab?: string | null;
+          dedupe_key?: string;
+          read_at?: string | null;
+          telegram_sent_at?: string | null;
           created_at?: string;
         };
         Relationships: [];
@@ -333,3 +473,6 @@ export type Category = Database['public']['Tables']['categories']['Row'];
 export type Transaction = Database['public']['Tables']['transactions']['Row'];
 export type ImportBatch = Database['public']['Tables']['import_batches']['Row'];
 export type TelegramLinkToken = Database['public']['Tables']['telegram_link_tokens']['Row'];
+export type RecurringBill = Database['public']['Tables']['recurring_bills']['Row'];
+export type AppNotification = Database['public']['Tables']['notifications']['Row'];
+export type AgentMessage = Database['public']['Tables']['agent_messages']['Row'];

@@ -9,6 +9,8 @@ import { CreditCardList } from './components/cards/CreditCardList';
 import { CategoryList } from './components/categories/CategoryList';
 import { ReportsView } from './components/dashboard/ReportsView';
 import { MoreView } from './components/more/MoreView';
+import { AgentChatView } from './components/chat/AgentChatView';
+import { RecurringBillsView } from './components/recurring/RecurringBillsView';
 import { TransactionModal } from './components/transactions/TransactionModal';
 import { useCategories } from './hooks/useCategories';
 import { useAccounts } from './hooks/useAccounts';
@@ -69,6 +71,18 @@ const DashboardContent: React.FC = () => {
         {activeTab === 'reports' && (
           <div className="animate-in fade-in duration-200">
             <ReportsView />
+          </div>
+        )}
+
+        {activeTab === 'assistant' && (
+          <div className="animate-in fade-in duration-200">
+            <AgentChatView />
+          </div>
+        )}
+
+        {activeTab === 'bills' && (
+          <div className="animate-in fade-in duration-200">
+            <RecurringBillsView />
           </div>
         )}
 

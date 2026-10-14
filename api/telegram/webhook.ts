@@ -8,27 +8,11 @@ import {
   linkTelegramAccount,
   extractLinkToken,
 } from './auth.js';
+import { sendTelegramMessage } from '../_lib/telegram.js';
 import {
   downloadTelegramVoiceBuffer,
   transcribeAudioWithWhisper,
 } from '../ai/whisper.js';
-
-async function sendTelegramMessage(botToken: string, chatId: number, text: string) {
-  try {
-    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-    await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: 'HTML',
-      }),
-    });
-  } catch (err) {
-    console.error('Erro ao enviar mensagem Telegram:', err);
-  }
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Apenas aceita requisições POST
@@ -121,7 +105,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // 6. Orquestração do Agente LangChain com OpenAI
   try {
-    const agentResponse = await runFinanceAgent(userId, text, supabaseAdmin);
+    const agentResponse = await runFinanceAgent(userId, text, supabaseAdmin, 'telegram');
     await sendTelegramMessage(botToken, chatId, agentResponse);
   } catch (err: unknown) {
     console.error('Erro na execução do agente:', err);

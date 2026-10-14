@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { splitInstallmentAmounts, generateInstallmentDates } from '../lib/financeRules';
+import { generateCardInstallmentSchedule } from '../lib/creditCardRules';
 import type { Transaction, TransactionType, PaymentMethod } from '../types/database';
 
 const CURRENT_DATE = new Date();
@@ -29,6 +30,7 @@ const INITIAL_DEMO_TRANSACTIONS: Transaction[] = [
     installment_group_id: null,
     is_invoice_payment: false,
     external_id: null,
+    recurring_bill_id: null,
     notes: 'Depósito em conta corrente Nubank',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -53,6 +55,7 @@ const INITIAL_DEMO_TRANSACTIONS: Transaction[] = [
     installment_group_id: null,
     is_invoice_payment: false,
     external_id: null,
+    recurring_bill_id: null,
     notes: 'Compras da semana',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -77,6 +80,7 @@ const INITIAL_DEMO_TRANSACTIONS: Transaction[] = [
     installment_group_id: 'demo-group-notebook',
     is_invoice_payment: false,
     external_id: null,
+    recurring_bill_id: null,
     notes: 'Compra de equipamento de trabalho parcelada em 5x',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -101,6 +105,7 @@ const INITIAL_DEMO_TRANSACTIONS: Transaction[] = [
     installment_group_id: null,
     is_invoice_payment: false,
     external_id: null,
+    recurring_bill_id: null,
     notes: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -205,13 +210,38 @@ export function useTransactions(initialFilter?: Partial<TransactionFilter>) {
     is_invoice_payment?: boolean;
     installments_count?: number;
     notes?: string;
+    /** Dias de fechamento/vencimento do cartão: quando informados, a compra no crédito é lançada nas faturas corretas */
+    card_closing_day?: number;
+    card_due_day?: number;
   }) => {
     const isInstallment = formData.installments_count && formData.installments_count > 1;
     const installmentsCount = isInstallment ? formData.installments_count! : 1;
 
+    const useCardInvoices =
+      formData.payment_method === 'credit' &&
+      formData.type === 'expense' &&
+      !formData.is_invoice_payment &&
+      !!formData.credit_card_id &&
+      !!formData.card_closing_day &&
+      !!formData.card_due_day;
+
     const installmentAmounts = splitInstallmentAmounts(formData.amount, installmentsCount);
-    const installmentDates = generateInstallmentDates(formData.transaction_date, installmentsCount);
-    const groupId = isInstallment ? `group-${Date.now()}-${Math.random().toString(36).substring(2, 7)}` : null;
+    // No cartão, cada parcela é datada no vencimento da fatura em que cai; nos demais casos, mês a mês.
+    const installmentDates = useCardInvoices
+      ? generateCardInstallmentSchedule(
+          formData.transaction_date,
+          formData.card_closing_day!,
+          formData.card_due_day!,
+          installmentsCount
+        ).map((invoice) => invoice.dueDate)
+      : generateInstallmentDates(formData.transaction_date, installmentsCount);
+    const groupId = isInstallment ? crypto.randomUUID() : null;
+    const [purchaseYear, purchaseMonth, purchaseDay] = formData.transaction_date.split('-');
+    const purchaseNote = useCardInvoices
+      ? `Compra em ${purchaseDay}/${purchaseMonth}/${purchaseYear}${isInstallment ? ` — ${installmentsCount}x` : ''}`
+      : null;
+    const buildNotes = () =>
+      [formData.notes?.trim(), purchaseNote].filter(Boolean).join(' | ') || null;
 
     if (isDemoMode) {
       const newItems: Transaction[] = [];
@@ -233,7 +263,7 @@ export function useTransactions(initialFilter?: Partial<TransactionFilter>) {
           type: formData.type,
           payment_method: formData.payment_method,
           transaction_date: installmentDates[i],
-          due_date: null,
+          due_date: useCardInvoices ? installmentDates[i] : null,
           is_paid: formData.is_paid ?? true,
           is_recurrent: false,
           installment_number: isInstallment ? i + 1 : null,
@@ -241,7 +271,8 @@ export function useTransactions(initialFilter?: Partial<TransactionFilter>) {
           installment_group_id: groupId,
           is_invoice_payment: formData.is_invoice_payment ?? false,
           external_id: null,
-          notes: formData.notes ?? null,
+          recurring_bill_id: null,
+          notes: buildNotes(),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -271,12 +302,13 @@ export function useTransactions(initialFilter?: Partial<TransactionFilter>) {
         type: formData.type,
         payment_method: formData.payment_method,
         transaction_date: installmentDates[i],
+        due_date: useCardInvoices ? installmentDates[i] : null,
         is_paid: formData.is_paid ?? true,
         installment_number: isInstallment ? i + 1 : null,
         total_installments: isInstallment ? installmentsCount : null,
         installment_group_id: groupId,
         is_invoice_payment: formData.is_invoice_payment ?? false,
-        notes: formData.notes ?? null,
+        notes: buildNotes(),
       });
     }
 

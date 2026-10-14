@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/Button';
 import { TelegramIntegrationModal } from '../telegram/TelegramIntegrationModal';
+import { NotificationBell } from '../notifications/NotificationBell';
 import {
   Home,
   Receipt,
@@ -9,6 +10,8 @@ import {
   CreditCard,
   Tag,
   BarChart3,
+  MessageSquare,
+  CalendarClock,
   MoreHorizontal,
   Plus,
   Bot,
@@ -22,6 +25,8 @@ export type ActiveTab =
   | 'cards'
   | 'categories'
   | 'reports'
+  | 'assistant'
+  | 'bills'
   | 'more';
 
 interface AppNavbarProps {
@@ -47,6 +52,8 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
     { id: 'accounts' as const, label: 'Contas', icon: Wallet },
     { id: 'cards' as const, label: 'Cartões', icon: CreditCard },
     { id: 'categories' as const, label: 'Categorias', icon: Tag },
+    { id: 'bills' as const, label: 'Contas fixas', icon: CalendarClock },
+    { id: 'assistant' as const, label: 'Assistente', icon: MessageSquare },
     { id: 'reports' as const, label: 'Relatórios', icon: BarChart3 },
   ];
 
@@ -115,6 +122,9 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
             >
               <Plus className="w-3.5 h-3.5 mr-1 stroke-[3]" /> Nova transação
             </Button>
+
+            {/* Sino de notificações */}
+            <NotificationBell onNavigate={onTabChange} />
 
             {/* Telegram Bot Indicator / Modal Trigger */}
             <button
@@ -210,7 +220,11 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
           <button
             onClick={() => onTabChange('more')}
             className={`flex flex-col items-center justify-center w-14 py-1 text-[10px] font-semibold transition-all cursor-pointer ${
-              activeTab === 'more' || activeTab === 'reports' || activeTab === 'categories'
+              activeTab === 'more' ||
+              activeTab === 'reports' ||
+              activeTab === 'categories' ||
+              activeTab === 'assistant' ||
+              activeTab === 'bills'
                 ? 'text-emerald-600'
                 : 'text-slate-400 hover:text-slate-600'
             }`}

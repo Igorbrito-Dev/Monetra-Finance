@@ -15,8 +15,16 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
   updateMonthlyBudget: (budget: number) => Promise<{ error: Error | null }>;
+  updateNotificationSettings: (settings: NotificationSettings) => Promise<{ error: Error | null }>;
   enterDemoMode: () => void;
   isDemoMode: boolean;
+}
+
+export interface NotificationSettings {
+  daily_report_enabled: boolean;
+  daily_report_hour: number;
+  bill_reminder_days: number;
+  card_reminder_days: number;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -139,6 +147,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error };
   };
 
+  const updateNotificationSettings = async (settings: NotificationSettings) => {
+    if (isDemoMode) {
+      setProfile((prev) => (prev ? { ...prev, ...settings } : null));
+      return { error: null };
+    }
+    if (!user) return { error: new Error('Não autenticado') };
+
+    const { error } = await supabase.from('profiles').update(settings).eq('id', user.id);
+
+    if (!error) {
+      setProfile((prev) => (prev ? { ...prev, ...settings } : null));
+    }
+    return { error: error ? new Error(error.message) : null };
+  };
+
   const enterDemoMode = () => {
     setIsDemoMode(true);
     const mockUser = {
@@ -158,6 +181,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       telegram_chat_id: 123456789,
       preferred_currency: 'BRL',
       monthly_budget: 3500.00,
+      daily_report_enabled: true,
+      daily_report_hour: 20,
+      bill_reminder_days: 1,
+      card_reminder_days: 2,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -177,6 +204,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         resetPassword,
         refreshProfile,
         updateMonthlyBudget,
+        updateNotificationSettings,
         enterDemoMode,
         isDemoMode,
       }}
