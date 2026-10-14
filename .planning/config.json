@@ -1,0 +1,16 @@
+{
+  "mode": "standard",
+  "workflow": {
+    "commit_per_phase": true,
+    "verify_before_complete": true
+  },
+  "stack": {
+    "frontend": "Vite + React + TypeScript + Tailwind CSS + shadcn/ui",
+    "backend": "Vercel Serverless Functions (/api)",
+    "database": "Supabase PostgreSQL (RLS)",
+    "auth": "Supabase Auth",
+    "ai": "LangChain + OpenAI API (Serverless Backend)",
+    "integrations": ["Telegram Bot API (Webhooks)", "OpenAI API (LangChain)"]
+  },
+  "tenancy": "multi-tenant"
+}
