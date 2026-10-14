@@ -1,81 +1,102 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/Button';
-import { Badge } from '../ui/Badge';
 import { TelegramIntegrationModal } from '../telegram/TelegramIntegrationModal';
 import {
-  LayoutDashboard,
-  ReceiptText,
-  Building2,
+  Home,
+  Receipt,
+  Wallet,
   CreditCard,
   Tag,
-  LogOut,
-  User,
+  BarChart3,
+  MoreHorizontal,
+  Plus,
   Bot,
+  LogOut,
 } from 'lucide-react';
 
-export type ActiveTab = 'overview' | 'transactions' | 'accounts' | 'cards' | 'categories';
+export type ActiveTab =
+  | 'overview'
+  | 'transactions'
+  | 'accounts'
+  | 'cards'
+  | 'categories'
+  | 'reports'
+  | 'more';
 
 interface AppNavbarProps {
   activeTab: ActiveTab;
   onTabChange: (tab: ActiveTab) => void;
+  onOpenNewTransaction: () => void;
 }
 
 export const AppNavbar: React.FC<AppNavbarProps> = ({
   activeTab,
   onTabChange,
+  onOpenNewTransaction,
 }) => {
-  const { user, profile, signOut, isDemoMode } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const [isTelegramModalOpen, setIsTelegramModalOpen] = useState(false);
 
   const isTelegramLinked = Boolean(profile?.telegram_chat_id);
 
-  const navItems = [
-    { id: 'overview', label: 'Visão Geral', shortLabel: 'Início', icon: LayoutDashboard },
-    { id: 'transactions', label: 'Transações', shortLabel: 'Extrato', icon: ReceiptText },
-    { id: 'accounts', label: 'Contas', shortLabel: 'Contas', icon: Building2 },
-    { id: 'cards', label: 'Cartões', shortLabel: 'Cartões', icon: CreditCard },
-    { id: 'categories', label: 'Categorias', shortLabel: 'Categorias', icon: Tag },
-  ] as const;
+  // Desktop navigation items
+  const desktopNavItems = [
+    { id: 'overview' as const, label: 'Início', icon: Home },
+    { id: 'transactions' as const, label: 'Extrato', icon: Receipt },
+    { id: 'accounts' as const, label: 'Contas', icon: Wallet },
+    { id: 'cards' as const, label: 'Cartões', icon: CreditCard },
+    { id: 'categories' as const, label: 'Categorias', icon: Tag },
+    { id: 'reports' as const, label: 'Relatórios', icon: BarChart3 },
+  ];
+
+  const userInitial = profile?.full_name
+    ? profile.full_name[0].toUpperCase()
+    : user?.email
+    ? user.email[0].toUpperCase()
+    : 'U';
 
   return (
     <>
-      {/* Top Header Bar */}
-      <header className="sticky top-0 z-40 glass-panel border-b border-slate-800/80 px-4 sm:px-6 py-2.5 sm:py-3 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
+      {/* TOP DESKTOP & MOBILE HEADER */}
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-100 px-4 sm:px-6 py-3 transition-all">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           
           {/* Logo & Desktop Nav */}
-          <div className="flex items-center gap-4 sm:gap-8">
-            <div className="flex items-center gap-2.5 sm:gap-3 cursor-pointer" onClick={() => onTabChange('overview')}>
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 text-white font-black text-base sm:text-lg flex-shrink-0">
+          <div className="flex items-center gap-6 lg:gap-8">
+            <button
+              onClick={() => onTabChange('overview')}
+              className="flex items-center gap-2.5 cursor-pointer text-left focus:outline-none"
+            >
+              <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-bold text-base shadow-sm shadow-emerald-600/30 flex-shrink-0">
                 M
               </div>
               <div>
-                <span className="text-sm sm:text-base font-bold tracking-tight text-white flex items-center gap-1">
-                  Monetra <span className="text-emerald-400 font-medium">Finance</span>
+                <span className="text-base font-bold tracking-tight text-slate-900 block leading-tight">
+                  Monetra <span className="text-emerald-600 font-medium">Finance</span>
                 </span>
-                <span className="text-[9px] sm:text-[10px] text-slate-400 block -mt-1 font-mono hidden xs:block">
-                  Multi-Tenant Serverless
+                <span className="text-[10px] text-slate-400 block font-medium">
+                  Gestão Pessoal
                 </span>
               </div>
-            </div>
+            </button>
 
-            {/* Desktop Navigation Links (hidden on mobile, visible on md+) */}
-            <nav className="hidden md:flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800">
-              {navItems.map((item) => {
+            {/* Desktop Navigation Links */}
+            <nav className="hidden md:flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200/60">
+              {desktopNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
                 return (
                   <button
                     key={item.id}
                     onClick={() => onTabChange(item.id)}
-                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                       isActive
-                        ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                        ? 'bg-white text-emerald-700 shadow-xs border border-slate-200/50'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                     }`}
                   >
-                    <Icon className="w-3.5 h-3.5" />
+                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-emerald-600' : 'text-slate-500'}`} />
                     {item.label}
                   </button>
                 );
@@ -83,83 +104,120 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
             </nav>
           </div>
 
-          {/* User Controls & Telegram Bot Action */}
+          {/* Desktop Right Actions (New Transaction + Telegram + User Profile) */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Telegram Bot Button */}
+            {/* Quick Nova Transação Button (Desktop) */}
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={onOpenNewTransaction}
+              className="hidden sm:inline-flex text-xs font-bold px-3.5 py-1.5 shadow-sm shadow-emerald-600/20"
+            >
+              <Plus className="w-3.5 h-3.5 mr-1 stroke-[3]" /> Nova transação
+            </Button>
+
+            {/* Telegram Bot Indicator / Modal Trigger */}
             <button
               onClick={() => setIsTelegramModalOpen(true)}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
                 isTelegramLinked
-                  ? 'bg-teal-500/10 text-teal-300 border-teal-500/30 hover:bg-teal-500/20'
-                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-100'
               }`}
-              title="Configurar Bot do Telegram, Áudios Whisper & IA"
+              title="Configurações do Bot do Telegram"
             >
-              <Bot className="w-4 h-4 text-teal-400 flex-shrink-0" />
-              <span className="hidden sm:inline">
-                {isTelegramLinked ? 'Telegram Conectado' : 'Telegram Bot'}
-              </span>
-              <span className="sm:hidden text-[11px] font-bold">
-                {isTelegramLinked ? 'Bot Conectado' : 'Bot'}
+              <Bot className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <span className="hidden lg:inline">
+                {isTelegramLinked ? 'Telegram Ativo' : 'Conectar Bot'}
               </span>
             </button>
 
-            {isDemoMode && (
-              <Badge variant="amber" className="text-[10px] hidden sm:inline-flex">
-                Demo
-              </Badge>
-            )}
-
             {/* User Profile Avatar */}
-            <div className="flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs">
-              <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs flex-shrink-0">
-                {profile?.full_name ? profile.full_name[0].toUpperCase() : <User className="w-3.5 h-3.5" />}
+            <button
+              onClick={() => onTabChange('more')}
+              className="flex items-center gap-2 p-1 sm:px-2.5 sm:py-1 rounded-xl bg-slate-100/80 hover:bg-slate-200/70 border border-slate-200/60 transition-all cursor-pointer"
+              title="Menu e Perfil"
+            >
+              <div className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0 shadow-xs">
+                {userInitial}
               </div>
-              <div className="text-left hidden lg:block">
-                <span className="font-semibold text-slate-200 block leading-tight max-w-[120px] truncate">
-                  {profile?.full_name || user?.email?.split('@')[0] || 'Usuário'}
-                </span>
-              </div>
-            </div>
+              <span className="hidden md:block text-xs font-semibold text-slate-700 max-w-[100px] truncate text-left">
+                {profile?.full_name || user?.email?.split('@')[0] || 'Igor'}
+              </span>
+            </button>
 
-            {/* Logout */}
-            <Button
-              variant="ghost"
-              size="sm"
+            {/* Logout Button (Desktop) */}
+            <button
               onClick={signOut}
               title="Encerrar Sessão"
-              className="text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 p-2 sm:px-3"
+              className="hidden sm:flex items-center justify-center p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
             >
-              <LogOut className="w-4 h-4 sm:mr-1" />
-              <span className="hidden sm:inline text-xs">Sair</span>
-            </Button>
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </header>
 
-      {/* MOBILE BOTTOM NAVIGATION BAR (Fixed at the bottom of smartphone screens) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-2xl border-t border-slate-800/80 px-2 py-1.5 shadow-2xl safe-area-pb">
-        <div className="grid grid-cols-5 gap-1 max-w-md mx-auto">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => onTabChange(item.id)}
-                className={`flex flex-col items-center justify-center py-1 px-1 rounded-xl text-[10px] font-semibold transition-all cursor-pointer ${
-                  isActive
-                    ? 'text-emerald-400 bg-emerald-500/10'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Icon className={`w-4 h-4 mb-0.5 transition-transform ${isActive ? 'scale-110 text-emerald-400' : ''}`} />
-                <span className="truncate max-w-[55px] text-center leading-tight">
-                  {item.shortLabel}
-                </span>
-              </button>
-            );
-          })}
+      {/* MOBILE BOTTOM NAVIGATION BAR (Faithful to the attached design reference) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xl border-t border-slate-100 px-3 py-2 shadow-[0_-4px_16px_rgba(0,0,0,0.03)] safe-area-pb">
+        <div className="flex items-center justify-around max-w-md mx-auto relative">
+          {/* Tab 1: Início */}
+          <button
+            onClick={() => onTabChange('overview')}
+            className={`flex flex-col items-center justify-center w-14 py-1 text-[10px] font-semibold transition-all cursor-pointer ${
+              activeTab === 'overview' ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <Home className="w-5 h-5 mb-0.5 stroke-[2.2]" />
+            <span>Início</span>
+          </button>
+
+          {/* Tab 2: Extrato */}
+          <button
+            onClick={() => onTabChange('transactions')}
+            className={`flex flex-col items-center justify-center w-14 py-1 text-[10px] font-semibold transition-all cursor-pointer ${
+              activeTab === 'transactions' ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <Receipt className="w-5 h-5 mb-0.5 stroke-[2.2]" />
+            <span>Extrato</span>
+          </button>
+
+          {/* CENTRAL FLOATING (+) BUTTON */}
+          <div className="relative -top-4 flex items-center justify-center">
+            <button
+              onClick={onOpenNewTransaction}
+              className="w-13 h-13 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-lg shadow-emerald-600/30 active:scale-95 transition-transform cursor-pointer border-4 border-white"
+              title="Nova Transação"
+              aria-label="Nova Transação"
+            >
+              <Plus className="w-7 h-7 stroke-[2.8]" />
+            </button>
+          </div>
+
+          {/* Tab 3: Contas */}
+          <button
+            onClick={() => onTabChange('accounts')}
+            className={`flex flex-col items-center justify-center w-14 py-1 text-[10px] font-semibold transition-all cursor-pointer ${
+              activeTab === 'accounts' || activeTab === 'cards' ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <Wallet className="w-5 h-5 mb-0.5 stroke-[2.2]" />
+            <span>Contas</span>
+          </button>
+
+          {/* Tab 4: Mais */}
+          <button
+            onClick={() => onTabChange('more')}
+            className={`flex flex-col items-center justify-center w-14 py-1 text-[10px] font-semibold transition-all cursor-pointer ${
+              activeTab === 'more' || activeTab === 'reports' || activeTab === 'categories'
+                ? 'text-emerald-600'
+                : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <MoreHorizontal className="w-5 h-5 mb-0.5 stroke-[2.2]" />
+            <span>Mais</span>
+          </button>
         </div>
       </nav>
 

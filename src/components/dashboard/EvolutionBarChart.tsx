@@ -23,18 +23,18 @@ export const EvolutionBarChart: React.FC<EvolutionBarChartProps> = ({ data }) =>
       <div>
         <div className="flex items-center justify-between mb-6">
           <CardTitle className="text-base flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-indigo-400" />
+            <TrendingUp className="w-4 h-4 text-emerald-600" />
             Evolução Mensal (Últimos 6 Meses)
           </CardTitle>
 
-          <div className="flex items-center gap-4 text-xs">
+          <div className="flex items-center gap-4 text-xs font-medium">
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-emerald-400" />
-              <span className="text-slate-400">Receitas</span>
+              <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+              <span className="text-slate-600">Receitas</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-rose-400" />
-              <span className="text-slate-400">Despesas</span>
+              <span className="w-2.5 h-2.5 rounded-sm bg-rose-500" />
+              <span className="text-slate-600">Despesas</span>
             </div>
           </div>
         </div>
@@ -42,26 +42,26 @@ export const EvolutionBarChart: React.FC<EvolutionBarChartProps> = ({ data }) =>
         {/* Hover Summary / Tooltip Box */}
         <div className="h-6 mb-2 text-xs flex items-center justify-end font-mono">
           {hoveredIndex !== null ? (
-            <div className="flex items-center gap-3 bg-slate-900 px-3 py-1 rounded-lg border border-slate-800 animate-in fade-in duration-150">
-              <span className="text-slate-400 font-sans font-semibold">
+            <div className="flex items-center gap-3 bg-slate-900 text-white px-3 py-1 rounded-xl shadow-md animate-in fade-in duration-150">
+              <span className="text-slate-300 font-sans font-semibold">
                 {data[hoveredIndex].monthLabel}:
               </span>
-              <span className="text-emerald-400">
+              <span className="text-emerald-400 font-semibold">
                 Rec: {formatCurrency(data[hoveredIndex].income)}
               </span>
-              <span className="text-rose-400">
+              <span className="text-rose-400 font-semibold">
                 Desp: {formatCurrency(data[hoveredIndex].expense)}
               </span>
             </div>
           ) : (
-            <span className="text-slate-600">Passe o cursor sobre as barras para ver detalhes</span>
+            <span className="text-slate-400">Passe o cursor sobre as barras para ver detalhes</span>
           )}
         </div>
 
         {/* Bar Chart Container */}
         <div className="relative pt-4 pb-2">
           {/* Background Grid Lines */}
-          <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-10">
+          <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-20">
             <div className="border-b border-slate-200 w-full" />
             <div className="border-b border-slate-200 w-full" />
             <div className="border-b border-slate-200 w-full" />
@@ -88,8 +88,8 @@ export const EvolutionBarChart: React.FC<EvolutionBarChartProps> = ({ data }) =>
                       style={{ height: `${incomeHeight}px` }}
                       className={`w-3 sm:w-4 rounded-t-md transition-all duration-300 ${
                         isHovered
-                          ? 'bg-emerald-300 shadow-lg shadow-emerald-500/30'
-                          : 'bg-emerald-500/80 hover:bg-emerald-400'
+                          ? 'bg-emerald-600 shadow-md shadow-emerald-500/30'
+                          : 'bg-emerald-500 hover:bg-emerald-600'
                       }`}
                     />
 
@@ -98,8 +98,8 @@ export const EvolutionBarChart: React.FC<EvolutionBarChartProps> = ({ data }) =>
                       style={{ height: `${expenseHeight}px` }}
                       className={`w-3 sm:w-4 rounded-t-md transition-all duration-300 ${
                         isHovered
-                          ? 'bg-rose-300 shadow-lg shadow-rose-500/30'
-                          : 'bg-rose-500/80 hover:bg-rose-400'
+                          ? 'bg-rose-600 shadow-md shadow-rose-500/30'
+                          : 'bg-rose-500 hover:bg-rose-600'
                       }`}
                     />
                   </div>
@@ -107,7 +107,7 @@ export const EvolutionBarChart: React.FC<EvolutionBarChartProps> = ({ data }) =>
                   {/* Month Label */}
                   <span
                     className={`text-[11px] font-medium transition-colors ${
-                      isHovered ? 'text-white font-bold' : 'text-slate-400'
+                      isHovered ? 'text-slate-900 font-bold' : 'text-slate-500'
                     }`}
                   >
                     {item.monthLabel}

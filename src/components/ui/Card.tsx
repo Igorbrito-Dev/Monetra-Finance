@@ -8,14 +8,12 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 export const Card: React.FC<CardProps> = ({
   children,
   className,
-  glass = true,
   ...props
 }) => {
   return (
     <div
       className={cn(
-        'rounded-2xl p-6 transition-all duration-300',
-        glass ? 'glass-card' : 'bg-slate-900 border border-slate-800 shadow-xl',
+        'bg-white border border-slate-100/90 rounded-2xl p-4 sm:p-5 shadow-[0_1px_3px_0_rgba(0,0,0,0.03),0_1px_2px_-1px_rgba(0,0,0,0.03)] transition-all duration-200',
         className
       )}
       {...props}
@@ -31,7 +29,7 @@ export const CardHeader: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
   ...props
 }) => {
   return (
-    <div className={cn('flex items-center justify-between mb-4', className)} {...props}>
+    <div className={cn('flex items-center justify-between mb-3', className)} {...props}>
       {children}
     </div>
   );
@@ -44,7 +42,7 @@ export const CardTitle: React.FC<React.HTMLAttributes<HTMLHeadingElement>> = ({
 }) => {
   return (
     <h3
-      className={cn('text-lg font-semibold text-slate-100 tracking-tight', className)}
+      className={cn('text-base sm:text-lg font-bold text-slate-800 tracking-tight', className)}
       {...props}
     >
       {children}
@@ -58,7 +56,7 @@ export const CardDescription: React.FC<React.HTMLAttributes<HTMLParagraphElement
   ...props
 }) => {
   return (
-    <p className={cn('text-sm text-slate-400 mt-1', className)} {...props}>
+    <p className={cn('text-xs text-slate-500 mt-0.5', className)} {...props}>
       {children}
     </p>
   );

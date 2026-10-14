@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Button } from '../ui/Button';
-import { Card, CardTitle } from '../ui/Card';
 import { X } from 'lucide-react';
 
 interface CategoryModalProps {
@@ -54,20 +53,20 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <Card className="w-full max-w-md p-6 border-slate-800 bg-slate-900 shadow-2xl relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="w-full max-w-md p-5 sm:p-6 bg-white border border-slate-100 rounded-3xl shadow-2xl relative text-slate-800">
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-850"
+          className="absolute top-4 right-4 sm:top-5 sm:right-5 text-slate-400 hover:text-slate-700 p-1 rounded-xl hover:bg-slate-100 cursor-pointer transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <CardTitle className="text-xl mb-4 text-white">Nova Categoria</CardTitle>
+        <h3 className="text-lg font-bold text-slate-900 mb-4">Nova Categoria</h3>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
               Tipo de Lançamento
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -79,8 +78,8 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
                 }}
                 className={`py-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
                   type === 'expense'
-                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/50'
-                    : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                    ? 'bg-rose-50 text-rose-700 border-rose-300 shadow-xs'
+                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                 }`}
               >
                 Despesa (Saída)
@@ -93,8 +92,8 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
                 }}
                 className={`py-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
                   type === 'income'
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
-                    : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300 shadow-xs'
+                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                 }`}
               >
                 Receita (Entrada)
@@ -103,7 +102,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
               Nome da Categoria
             </label>
             <input
@@ -112,12 +111,12 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
               placeholder="Ex: Farmácia, Restaurante, Salário"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-750 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs sm:text-sm placeholder-slate-400 focus:outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-2">
+            <label className="block text-xs font-semibold text-slate-700 mb-2">
               Cor Visual
             </label>
             <div className="flex items-center gap-2.5 flex-wrap">
@@ -127,7 +126,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
                   key={c}
                   onClick={() => setColor(c)}
                   className={`w-7 h-7 rounded-full border-2 transition-all cursor-pointer ${
-                    color === c ? 'border-white scale-110 shadow-md' : 'border-transparent opacity-70 hover:opacity-100'
+                    color === c ? 'border-emerald-600 scale-110 shadow-sm' : 'border-transparent opacity-70 hover:opacity-100'
                   }`}
                   style={{ backgroundColor: c }}
                 />
@@ -135,26 +134,26 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
             </div>
           </div>
 
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-2.5 pt-3">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
-              className="flex-1"
+              className="flex-1 text-xs"
             >
               Cancelar
             </Button>
             <Button
               type="submit"
               variant="primary"
-              className="flex-1"
+              className="flex-1 text-xs font-bold"
               isLoading={loading}
             >
               Salvar Categoria
             </Button>
           </div>
         </form>
-      </Card>
+      </div>
     </div>
   );
 };

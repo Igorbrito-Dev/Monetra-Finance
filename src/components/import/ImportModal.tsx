@@ -7,7 +7,6 @@ import { useCreditCards } from '../../hooks/useCreditCards';
 import { useTransactions } from '../../hooks/useTransactions';
 import { useImportBatches } from '../../hooks/useImportBatches';
 import { formatCurrency, formatDate } from '../../lib/utils';
-import { Card, CardTitle } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import {
@@ -26,12 +25,17 @@ interface ImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImportComplete?: () => void;
+  categories?: any[];
+  accounts?: any[];
+  cards?: any[];
+  onSuccess?: () => void;
 }
 
 export const ImportModal: React.FC<ImportModalProps> = ({
   isOpen,
   onClose,
   onImportComplete,
+  onSuccess,
 }) => {
   const { categories } = useCategories();
   const { accounts } = useAccounts();
@@ -145,6 +149,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
         setStep('success');
         await refetchTransactions();
         if (onImportComplete) onImportComplete();
+        if (onSuccess) onSuccess();
       }
     } finally {
       setLoading(false);
@@ -155,30 +160,31 @@ export const ImportModal: React.FC<ImportModalProps> = ({
   const duplicateCount = rows.filter((r) => r.isDuplicate).length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <Card className="w-full max-w-4xl p-4 sm:p-6 border-slate-800 bg-slate-900 shadow-2xl relative max-h-[92vh] flex flex-col">
-        {/* Modal Header */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="w-full max-w-4xl p-5 sm:p-6 bg-white border border-slate-100 rounded-3xl shadow-2xl relative max-h-[92vh] flex flex-col text-slate-800">
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+          className="absolute top-4 right-4 sm:top-5 sm:right-5 text-slate-400 hover:text-slate-700 p-1 rounded-xl hover:bg-slate-100 cursor-pointer transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center flex-shrink-0">
-            <FileSpreadsheet className="w-6 h-6" />
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0">
+            <FileSpreadsheet className="w-6 h-6 stroke-[2.2]" />
           </div>
           <div>
-            <CardTitle className="text-xl text-white">Importação Inteligente de Extratos</CardTitle>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <h3 className="text-lg font-bold text-slate-900 leading-tight">
+              Importação Inteligente de Extratos
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
               Importe faturas e extratos CSV com pré-visualização, deduplicação e auto-categorização.
             </p>
           </div>
         </div>
 
         {error && (
-          <div className="p-3 mb-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+          <div className="p-3 mb-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
             <span>{error}</span>
           </div>
@@ -187,17 +193,17 @@ export const ImportModal: React.FC<ImportModalProps> = ({
         {/* STEP 1: UPLOAD */}
         {step === 'upload' && (
           <div className="space-y-6 my-auto py-8">
-            <label className="flex flex-col items-center justify-center p-8 rounded-3xl border-2 border-dashed border-slate-750 hover:border-emerald-500/50 bg-slate-950/60 hover:bg-emerald-500/5 transition-all cursor-pointer text-center group">
-              <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 text-slate-400 group-hover:text-emerald-400 flex items-center justify-center mb-4 transition-colors">
+            <label className="flex flex-col items-center justify-center p-8 rounded-3xl border-2 border-dashed border-slate-200 hover:border-emerald-500 bg-slate-50 hover:bg-emerald-50/30 transition-all cursor-pointer text-center group">
+              <div className="w-16 h-16 rounded-2xl bg-white border border-slate-200 text-slate-400 group-hover:text-emerald-600 flex items-center justify-center mb-4 transition-colors shadow-xs">
                 <Upload className="w-8 h-8" />
               </div>
-              <h4 className="text-base font-semibold text-white mb-1">
+              <h4 className="text-base font-bold text-slate-900 mb-1">
                 Clique para selecionar ou arraste seu arquivo CSV
               </h4>
-              <p className="text-xs text-slate-400 max-w-sm mb-4">
+              <p className="text-xs text-slate-500 max-w-sm mb-4">
                 Suporta extratos bancários e faturas de cartão de crédito do Nubank, Itaú, Bradesco, Inter, C6, etc. (Máx: 5MB).
               </p>
-              <span className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 group-hover:border-emerald-500/30">
+              <span className="text-xs font-bold px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 group-hover:border-emerald-300 shadow-xs">
                 Selecionar Arquivo .CSV
               </span>
               <input
@@ -208,12 +214,12 @@ export const ImportModal: React.FC<ImportModalProps> = ({
               />
             </label>
 
-            <div className="flex items-center justify-between text-xs text-slate-500 px-2">
-              <span className="flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <div className="flex items-center justify-between text-xs text-slate-400 px-2">
+              <span className="flex items-center gap-1.5 font-medium">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
                 Pré-visualização garantida antes de salvar
               </span>
-              <span>Proteção anti-dupla contagem</span>
+              <span className="font-medium">Proteção anti-dupla contagem</span>
             </div>
           </div>
         )}
@@ -222,27 +228,27 @@ export const ImportModal: React.FC<ImportModalProps> = ({
         {step === 'preview' && (
           <div className="flex-1 flex flex-col overflow-hidden space-y-4">
             {/* Top Bar with Destination Account/Card */}
-            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <span className="text-xs text-slate-400 block mb-1">Arquivo Selecionado</span>
-                <span className="text-sm font-semibold text-white font-mono flex items-center gap-2">
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs text-slate-400 block mb-0.5">Arquivo Selecionado</span>
+                <span className="text-sm font-bold text-slate-900 font-mono flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
                   {filename}
                 </span>
               </div>
 
               {/* Destination Selector */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
-                <div className="flex rounded-xl bg-slate-900 p-1 border border-slate-800 text-xs w-full sm:w-auto">
+                <div className="flex rounded-xl bg-white p-1 border border-slate-200 text-xs w-full sm:w-auto shadow-xs">
                   <button
                     onClick={() => {
                       setDestinationType('account');
                       setDestinationId('');
                     }}
-                    className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
                       destinationType === 'account'
-                        ? 'bg-emerald-500 text-white'
-                        : 'text-slate-400 hover:text-white'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     <Building2 className="w-3.5 h-3.5 inline mr-1" /> Conta Bancária
@@ -252,10 +258,10 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                       setDestinationType('card');
                       setDestinationId('');
                     }}
-                    className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
                       destinationType === 'card'
-                        ? 'bg-indigo-500 text-white'
-                        : 'text-slate-400 hover:text-white'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     <CreditCard className="w-3.5 h-3.5 inline mr-1" /> Cartão de Crédito
@@ -265,7 +271,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                 <select
                   value={destinationId}
                   onChange={(e) => setDestinationId(e.target.value)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-white text-xs focus:outline-none focus:border-emerald-500"
+                  className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-emerald-500 font-medium"
                 >
                   <option value="">Selecione o destino (opcional)</option>
                   {destinationType === 'account'
@@ -288,14 +294,14 @@ export const ImportModal: React.FC<ImportModalProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleSelectAll(true)}
-                  className="text-slate-400 hover:text-white underline cursor-pointer"
+                  className="text-slate-600 hover:text-emerald-700 underline font-semibold cursor-pointer"
                 >
                   Marcar Todas
                 </button>
-                <span>•</span>
+                <span className="text-slate-300">•</span>
                 <button
                   onClick={() => handleSelectAll(false)}
-                  className="text-slate-400 hover:text-white underline cursor-pointer"
+                  className="text-slate-600 hover:text-emerald-700 underline font-semibold cursor-pointer"
                 >
                   Desmarcar Todas
                 </button>
@@ -306,15 +312,15 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                 )}
               </div>
 
-              <span className="text-slate-400 font-mono">
+              <span className="text-slate-500 font-mono font-bold">
                 {selectedCount} de {rows.length} linhas selecionadas
               </span>
             </div>
 
             {/* Interactive Preview Table with Horizontal Scroll */}
-            <div className="flex-1 overflow-auto border border-slate-800 rounded-2xl bg-slate-950/60">
+            <div className="flex-1 overflow-auto border border-slate-200 rounded-2xl bg-white shadow-xs">
               <table className="w-full min-w-[580px] text-left text-xs">
-                <thead className="sticky top-0 bg-slate-900/90 backdrop-blur-sm border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+                <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
                   <tr>
                     <th className="p-3 w-10 text-center">Sel.</th>
                     <th className="p-3">Data</th>
@@ -324,32 +330,32 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                     <th className="p-3">Categoria Sugerida</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-850">
+                <tbody className="divide-y divide-slate-100">
                   {rows.map((row, idx) => (
                     <tr
                       key={idx}
-                      className={`hover:bg-slate-900/50 transition-colors ${
-                        row.isDuplicate ? 'bg-amber-950/10' : ''
-                      } ${!row.selected ? 'opacity-50' : ''}`}
+                      className={`hover:bg-slate-50 transition-colors ${
+                        row.isDuplicate ? 'bg-amber-50/50' : ''
+                      } ${!row.selected ? 'opacity-40' : ''}`}
                     >
                       <td className="p-3 text-center">
                         <input
                           type="checkbox"
                           checked={row.selected}
                           onChange={() => handleToggleRow(idx)}
-                          className="rounded border-slate-700 text-emerald-500 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                          className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
                         />
                       </td>
 
-                      <td className="p-3 whitespace-nowrap text-slate-300 font-mono">
+                      <td className="p-3 whitespace-nowrap text-slate-600 font-mono font-medium">
                         {formatDate(row.normalizedDate)}
                       </td>
 
-                      <td className="p-3 text-white font-medium">
+                      <td className="p-3 text-slate-800 font-medium">
                         <div>
                           <span>{row.description}</span>
                           {row.isDuplicate && (
-                            <span className="text-[10px] text-amber-400 block mt-0.5 font-sans">
+                            <span className="text-[10px] text-amber-700 block mt-0.5 font-sans font-semibold">
                               ⚠️ {row.duplicateReason}
                             </span>
                           )}
@@ -362,8 +368,8 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                           onClick={() => handleToggleType(idx)}
                           className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase transition-all cursor-pointer ${
                             row.type === 'income'
-                              ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
-                              : 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30'
+                              ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                              : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
                           }`}
                           title="Clique para alternar entre Receita e Despesa"
                         >
@@ -372,7 +378,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                       </td>
 
                       <td className={`p-3 text-right font-mono font-bold whitespace-nowrap ${
-                        row.type === 'income' ? 'text-emerald-400' : 'text-slate-100'
+                        row.type === 'income' ? 'text-emerald-600' : 'text-slate-800'
                       }`}>
                         {row.type === 'income' ? '+' : '-'} {formatCurrency(row.amount)}
                       </td>
@@ -381,7 +387,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                         <select
                           value={row.suggestedCategoryId || ''}
                           onChange={(e) => handleCategoryChange(idx, e.target.value)}
-                          className="px-2 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 text-xs focus:outline-none focus:border-emerald-500 w-full max-w-[180px]"
+                          className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 text-xs focus:outline-none focus:border-emerald-500 w-full max-w-[180px]"
                         >
                           <option value="">Sem categoria</option>
                           {categories.map((c) => (
@@ -403,6 +409,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                 variant="outline"
                 size="md"
                 onClick={() => setStep('upload')}
+                className="text-xs"
               >
                 Escolher Outro Arquivo
               </Button>
@@ -413,6 +420,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                 onClick={handleConfirmImport}
                 isLoading={loading}
                 disabled={selectedCount === 0}
+                className="text-xs font-bold"
               >
                 Confirmar e Importar {selectedCount} Lançamentos <ArrowRight className="w-4 h-4 ml-1.5" />
               </Button>
@@ -423,23 +431,23 @@ export const ImportModal: React.FC<ImportModalProps> = ({
         {/* STEP 3: SUCCESS */}
         {step === 'success' && (
           <div className="text-center py-12 space-y-4 my-auto">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
-              <CheckCircle2 className="w-8 h-8" />
+            <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-xs">
+              <CheckCircle2 className="w-8 h-8 stroke-[2.2]" />
             </div>
 
-            <h3 className="text-2xl font-bold text-white">Importação Concluída com Sucesso!</h3>
-            <p className="text-sm text-slate-400 max-w-md mx-auto">
+            <h3 className="text-xl sm:text-2xl font-bold text-slate-900">Importação Concluída com Sucesso!</h3>
+            <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
               Foram adicionados <strong>{importedCount} lançamentos</strong> à sua conta. O lote foi registrado e vinculado para fins de auditoria.
             </p>
 
             <div className="pt-4 flex justify-center gap-3">
-              <Button variant="primary" size="lg" onClick={onClose}>
+              <Button variant="primary" size="md" onClick={onClose} className="font-bold">
                 Ver Meus Lançamentos
               </Button>
             </div>
           </div>
         )}
-      </Card>
+      </div>
     </div>
   );
 };

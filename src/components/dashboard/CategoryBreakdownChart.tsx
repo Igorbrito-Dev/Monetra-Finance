@@ -18,22 +18,22 @@ export const CategoryBreakdownChart: React.FC<CategoryBreakdownChartProps> = ({
       <div>
         <div className="flex items-center justify-between mb-4">
           <CardTitle className="text-base flex items-center gap-2">
-            <PieChart className="w-4 h-4 text-emerald-400" />
+            <PieChart className="w-4 h-4 text-emerald-600" />
             Gastos por Categoria
           </CardTitle>
-          <span className="text-xs font-mono text-slate-400">
+          <span className="text-xs font-mono text-slate-500 font-medium">
             Total: {formatCurrency(totalExpense)}
           </span>
         </div>
 
         {items.length === 0 ? (
-          <div className="text-center py-8 text-xs text-slate-500">
+          <div className="text-center py-8 text-xs text-slate-400">
             Nenhuma despesa registrada neste período.
           </div>
         ) : (
           <div className="space-y-3.5">
             {/* Visual Multi-Segment Bar */}
-            <div className="h-3 rounded-full bg-slate-900 overflow-hidden flex shadow-inner">
+            <div className="h-3 rounded-full bg-slate-100 overflow-hidden flex shadow-inner">
               {items.map((item, idx) => (
                 <div
                   key={item.categoryId || `item-${idx}`}
@@ -42,7 +42,7 @@ export const CategoryBreakdownChart: React.FC<CategoryBreakdownChartProps> = ({
                     backgroundColor: item.color,
                   }}
                   title={`${item.categoryName}: ${item.percentage}%`}
-                  className="h-full transition-all duration-500 hover:brightness-125"
+                  className="h-full transition-all duration-500 hover:brightness-110"
                 />
               ))}
             </div>
@@ -59,7 +59,7 @@ export const CategoryBreakdownChart: React.FC<CategoryBreakdownChartProps> = ({
                       className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                       style={{ backgroundColor: item.color }}
                     />
-                    <span className="text-slate-300 truncate font-medium group-hover:text-white transition-colors">
+                    <span className="text-slate-700 truncate font-medium group-hover:text-emerald-700 transition-colors">
                       {item.categoryName}
                     </span>
                   </div>
@@ -68,7 +68,7 @@ export const CategoryBreakdownChart: React.FC<CategoryBreakdownChartProps> = ({
                     <span className="text-slate-400 text-[11px]">
                       {item.percentage}%
                     </span>
-                    <span className="text-slate-200 font-semibold">
+                    <span className="text-slate-900 font-semibold">
                       {formatCurrency(item.amount)}
                     </span>
                   </div>
