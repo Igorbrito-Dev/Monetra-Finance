@@ -17,7 +17,8 @@ export type NotificationType =
   | 'bill_overdue'
   | 'card_invoice'
   | 'daily_report'
-  | 'budget_alert';
+  | 'budget_alert'
+  | 'category_budget';
 
 export type Database = {
   public: {
@@ -421,6 +422,84 @@ export type Database = {
         };
         Relationships: [];
       };
+      category_budgets: {
+        Row: {
+          id: string;
+          user_id: string;
+          category_id: string;
+          monthly_limit: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          category_id: string;
+          monthly_limit: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          category_id?: string;
+          monthly_limit?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      category_rules: {
+        Row: {
+          id: string;
+          user_id: string;
+          keyword: string;
+          category_id: string;
+          hits: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          keyword: string;
+          category_id: string;
+          hits?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          keyword?: string;
+          category_id?: string;
+          hits?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      ai_usage: {
+        Row: {
+          id: string;
+          user_id: string;
+          kind: 'receipt';
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          kind: 'receipt';
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          kind?: 'receipt';
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       telegram_link_tokens: {
         Row: {
           id: string;
@@ -492,3 +571,5 @@ export type TelegramLinkToken = Database['public']['Tables']['telegram_link_toke
 export type RecurringBill = Database['public']['Tables']['recurring_bills']['Row'];
 export type AppNotification = Database['public']['Tables']['notifications']['Row'];
 export type AgentMessage = Database['public']['Tables']['agent_messages']['Row'];
+export type CategoryBudget = Database['public']['Tables']['category_budgets']['Row'];
+export type CategoryRuleRow = Database['public']['Tables']['category_rules']['Row'];

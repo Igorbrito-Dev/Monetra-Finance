@@ -5,6 +5,7 @@ import { formatCurrency } from '../../lib/utils';
 import { Button } from '../ui/Button';
 import { AccountModal } from './AccountModal';
 import { CreditCardModal } from '../cards/CreditCardModal';
+import { ReconcileBox } from './ReconcileBox';
 import {
   Plus,
   Building2,
@@ -15,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export const AccountList: React.FC = () => {
-  const { accounts, loading: loadingAccounts, createAccount, deleteAccount } = useAccounts();
+  const { accounts, loading: loadingAccounts, createAccount, deleteAccount, refetch: refetchAccounts } = useAccounts();
   const { cards, loading: loadingCards, createCard, deleteCard } = useCreditCards();
 
   const [activeFilter, setActiveFilter] = useState<'all' | 'accounts' | 'cards'>('all');
@@ -306,6 +307,18 @@ export const AccountList: React.FC = () => {
                 </>
               )}
             </div>
+
+            {selectedItem.type === 'account' && (
+              <ReconcileBox
+                accountId={selectedItem.item.id}
+                accountName={selectedItem.item.name}
+                appBalance={Number(selectedItem.item.current_balance || 0)}
+                onAdjusted={() => {
+                  setSelectedItem(null);
+                  refetchAccounts();
+                }}
+              />
+            )}
 
             <div className="pt-3 border-t border-slate-100">
               <Button

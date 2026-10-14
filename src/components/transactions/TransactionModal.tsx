@@ -31,6 +31,8 @@ interface TransactionModalProps {
   cards?: CreditCard[];
   /** Quando informado, o modal abre em modo de edição deste lançamento */
   initialValues?: Transaction | null;
+  /** Usa initialValues como modelo para um novo lançamento (data de hoje) */
+  isRepeat?: boolean;
 }
 
 export const TransactionModal: React.FC<TransactionModalProps> = ({
@@ -41,6 +43,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   accounts: propAccounts,
   cards: propCards,
   initialValues,
+  isRepeat = false,
 }) => {
   const hookAccounts = useAccounts();
   const hookCards = useCreditCards();
@@ -65,7 +68,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const isEditing = Boolean(initialValues);
+  const isEditing = Boolean(initialValues) && !isRepeat;
 
   // Preenche o formulário ao abrir em modo de edição
   useEffect(() => {
@@ -73,16 +76,16 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     setType(initialValues.type === 'income' ? 'income' : 'expense');
     setDescription(initialValues.description);
     setAmount(String(initialValues.amount).replace('.', ','));
-    setDate(initialValues.transaction_date);
+    setDate(isRepeat ? new Date().toLocaleDateString('en-CA') : initialValues.transaction_date);
     setPaymentMethod(initialValues.payment_method);
     setAccountId(initialValues.account_id ?? '');
     setCardId(initialValues.credit_card_id ?? '');
     setCategoryId(initialValues.category_id ?? '');
-    setIsPaid(initialValues.is_paid);
+    setIsPaid(isRepeat ? initialValues.payment_method !== 'credit' : initialValues.is_paid);
     setIsInvoicePayment(initialValues.is_invoice_payment);
     setIsInstallment(false);
     setNotes(initialValues.notes ?? '');
-  }, [isOpen, initialValues]);
+  }, [isOpen, initialValues, isRepeat]);
 
   if (!isOpen) return null;
 

@@ -6,6 +6,7 @@ import { ensureRecurringOccurrences } from '../_lib/recurring.js';
 import { sendTelegramMessage, escapeHtml } from '../_lib/telegram.js';
 import { getReminderKind, diffInDays, type ReminderKind } from '../../src/lib/billRules.js';
 import { formatIsoDateBR } from '../../src/lib/creditCardRules.js';
+import { computeMonthOutlook, type InsightTx } from '../../src/lib/spendingInsights.js';
 
 type Supabase = SupabaseClient<Database>;
 type NotificationInsert = Database['public']['Tables']['notifications']['Insert'];
@@ -70,7 +71,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey);
-  const { dateStr: today, hour, monthFormatted, year } = getBrasiliaDateParts();
+  const { dateStr: today, hour, month, monthFormatted, year } = getBrasiliaDateParts();
+  const monthEnd = `${year}-${monthFormatted}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, '0')}`;
 
   const summary = { occurrencesCreated: 0, notificationsCreated: 0, telegramSent: 0 };
 
@@ -95,6 +97,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { data: cards } = await supabase.from('credit_cards').select('id, name');
     const cardNames = new Map((cards || []).map((c) => [c.id, c.name]));
+
+    const { data: allCategories } = await supabase.from('categories').select('id, name');
+    const categoryNames = new Map((allCategories || []).map((c) => [c.id, c.name]));
+
+    // Orçamentos por categoria (a tabela pode não existir se a migration estiver pendente)
+    const { data: allCategoryBudgets } = await supabase
+      .from('category_budgets')
+      .select('user_id, category_id, monthly_limit');
 
     for (const profile of profiles) {
       const userPending = (pending || []).filter((t) => t.user_id === profile.id);
@@ -177,22 +187,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
 
+      // --- Orçamento por categoria (80% e 100%) ---
+      const userCategoryBudgets = (allCategoryBudgets || []).filter((b) => b.user_id === profile.id);
+      if (userCategoryBudgets.length > 0) {
+        const { data: categoryTx } = await supabase
+          .from('transactions')
+          .select('category_id, amount')
+          .eq('user_id', profile.id)
+          .eq('type', 'expense')
+          .eq('is_invoice_payment', false)
+          .gte('transaction_date', `${year}-${monthFormatted}-01`)
+          .lte('transaction_date', monthEnd);
+
+        const spentByCategory = new Map<string, number>();
+        for (const t of categoryTx || []) {
+          if (!t.category_id) continue;
+          spentByCategory.set(t.category_id, (spentByCategory.get(t.category_id) ?? 0) + Number(t.amount));
+        }
+
+        for (const b of userCategoryBudgets) {
+          const limit = Number(b.monthly_limit);
+          const spent = spentByCategory.get(b.category_id) ?? 0;
+          const pct = limit > 0 ? Math.floor((spent / limit) * 100) : 0;
+          const threshold = pct >= 100 ? 100 : pct >= 80 ? 80 : 0;
+          if (threshold === 0) continue;
+
+          const name = categoryNames.get(b.category_id) ?? 'Categoria';
+          notifications.push({
+            user_id: profile.id,
+            type: 'category_budget',
+            title: threshold === 100 ? `🚨 ${name}: orçamento estourado` : `⚠️ ${name}: 80% do orçamento`,
+            body: `Você gastou R$ ${formatBRL(spent)} (${pct}%) de R$ ${formatBRL(limit)} em ${name} neste mês.`,
+            link_tab: 'planning',
+            dedupe_key: `catbudget:${b.category_id}:${year}-${monthFormatted}:${threshold}`,
+          });
+        }
+      }
+
       // --- Relatório diário ---
       if (profile.daily_report_enabled && profile.daily_report_hour === hour) {
         const monthStart = `${year}-${monthFormatted}-01`;
         const { data: monthTx } = await supabase
           .from('transactions')
-          .select('amount, type, transaction_date, is_invoice_payment')
+          .select(
+            'description, amount, type, transaction_date, is_paid, is_invoice_payment, category_id, installment_number, recurring_bill_id'
+          )
           .eq('user_id', profile.id)
           .gte('transaction_date', monthStart)
-          .lte('transaction_date', today);
+          .lte('transaction_date', monthEnd);
 
         let spentToday = 0;
         let earnedToday = 0;
         let spentMonth = 0;
         let earnedMonth = 0;
         for (const t of monthTx || []) {
-          if (t.is_invoice_payment) continue;
+          if (t.is_invoice_payment || t.transaction_date > today) continue;
           const value = Number(t.amount);
           if (t.type === 'expense') {
             spentMonth += value;
@@ -215,6 +264,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           `Receitas de hoje: R$ ${formatBRL(earnedToday)}`,
           `Balanço do mês: R$ ${formatBRL(earnedMonth - spentMonth)} (receitas R$ ${formatBRL(earnedMonth)} − despesas R$ ${formatBRL(spentMonth)})`,
         ];
+        const outlook = computeMonthOutlook(
+          (monthTx || []) as InsightTx[],
+          today,
+          Number(profile.monthly_budget || 0)
+        );
+        if (outlook.dailyAllowance !== null) {
+          lines.push(`Pode gastar amanhã e nos próximos dias: R$ ${formatBRL(outlook.dailyAllowance)} por dia`);
+        }
+        lines.push(`Previsão do mês: saldo de R$ ${formatBRL(outlook.projectedBalance)}`);
         if (overdueCount > 0) lines.push(`🚨 Contas atrasadas: ${overdueCount}`);
         if (upcoming.length > 0) {
           lines.push('Próximos 7 dias:');

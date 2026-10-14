@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Send, RotateCcw, Bot } from 'lucide-react';
+import { Send, RotateCcw, Bot, Mic } from 'lucide-react';
 import { useAgentChat } from '../../hooks/useAgentChat';
 import { Button } from '../ui/Button';
 
@@ -17,6 +17,39 @@ function renderAgentHtml(text: string): string {
 export const AgentChatView: React.FC = () => {
   const { messages, loading, sending, error, sendMessage, resetConversation } = useAgentChat();
   const [draft, setDraft] = useState('');
+  const [listening, setListening] = useState(false);
+
+  const speechCtor =
+    typeof window !== 'undefined'
+      ? ((window as unknown as Record<string, unknown>).SpeechRecognition ||
+          (window as unknown as Record<string, unknown>).webkitSpeechRecognition)
+      : undefined;
+
+  const handleVoice = () => {
+    const Ctor = speechCtor as
+      | (new () => {
+          lang: string;
+          interimResults: boolean;
+          onresult: (event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void;
+          onend: () => void;
+          onerror: () => void;
+          start: () => void;
+        })
+      | undefined;
+    if (!Ctor) return;
+
+    const recognition = new Ctor();
+    recognition.lang = 'pt-BR';
+    recognition.interimResults = false;
+    setListening(true);
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      setDraft((prev) => (prev ? `${prev} ${transcript}` : transcript));
+    };
+    recognition.onend = () => setListening(false);
+    recognition.onerror = () => setListening(false);
+    recognition.start();
+  };
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -103,6 +136,21 @@ export const AgentChatView: React.FC = () => {
           placeholder="Ex: comprei 2 carregadores em 5x de 40 no cartão"
           className="flex-1 px-3.5 py-2.5 rounded-2xl bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 resize-none"
         />
+        {Boolean(speechCtor) && (
+          <button
+            type="button"
+            onClick={handleVoice}
+            className={`h-[42px] w-[42px] flex items-center justify-center rounded-2xl border flex-shrink-0 cursor-pointer ${
+              listening
+                ? 'bg-rose-50 border-rose-300 text-rose-600 animate-pulse'
+                : 'bg-white border-slate-200 text-slate-600 hover:text-emerald-700'
+            }`}
+            title="Falar a mensagem"
+            aria-label="Falar a mensagem"
+          >
+            <Mic className="w-4 h-4" />
+          </button>
+        )}
         <Button type="submit" variant="primary" disabled={!draft.trim() || sending} className="h-[42px] px-4">
           <Send className="w-4 h-4" />
         </Button>

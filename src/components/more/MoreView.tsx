@@ -20,11 +20,12 @@ import {
   MessageSquare,
   CalendarClock,
   FileText,
+  PiggyBank,
 } from 'lucide-react';
 
 interface MoreViewProps {
   onNavigateToTab: (
-    tab: 'overview' | 'transactions' | 'accounts' | 'cards' | 'categories' | 'reports' | 'assistant' | 'bills' | 'invoices'
+    tab: 'overview' | 'transactions' | 'accounts' | 'cards' | 'categories' | 'reports' | 'assistant' | 'bills' | 'invoices' | 'planning'
   ) => void;
 }
 
@@ -99,6 +100,25 @@ export const MoreView: React.FC<MoreViewProps> = ({ onNavigateToTab }) => {
               <span className="text-sm font-bold text-slate-800 block">Assistente IA</span>
               <span className="text-xs text-slate-400 block">
                 Registre gastos conversando, com memória e parcelas no cartão
+              </span>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all" />
+        </button>
+
+        {/* Item: Planejar */}
+        <button
+          onClick={() => onNavigateToTab('planning')}
+          className="w-full flex items-center justify-between p-4 hover:bg-slate-50/70 transition-colors cursor-pointer text-left group"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0">
+              <PiggyBank className="w-5 h-5 stroke-[2.2]" />
+            </div>
+            <div>
+              <span className="text-sm font-bold text-slate-800 block">Planejar</span>
+              <span className="text-xs text-slate-400 block">
+                Quanto posso gastar hoje, previsão do mês e orçamentos
               </span>
             </div>
           </div>

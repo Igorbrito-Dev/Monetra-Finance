@@ -95,6 +95,8 @@ Planeja-se suportar compras parceladas, faturas, vencimentos, pagamentos e despe
 
 **Implementado:** o agente (Telegram e chat do app) mantém memória da conversa, registra vários lançamentos por mensagem e pergunta o que faltar (ex.: qual cartão). Compras parceladas no crédito caem na fatura correta conforme fechamento/vencimento do cartão (compra no dia do fechamento ou depois vai para a próxima fatura). Há contas fixas mensais com status por cor (verde pago, amarelo vence hoje, vermelho atrasado), anotações nos lançamentos, sino de notificações e lembretes/relatório diário no Telegram, configuráveis em **Mais**. Veja `docs/DEPLOYMENT.md` (seções 5.1 a 5.3) para a migration e o agendador.
 
+**Uso diário:** lançamento rápido com sugestões e "repetir", leitura de comprovante por foto e voz, "quanto posso gastar hoje", previsão do fim do mês, orçamento por categoria, comparativo com o mês anterior, detecção de assinaturas, conciliação de saldo com o banco, edição em massa, desfazer e app instalável (PWA).
+
 ## Segurança e privacidade
 
 - Segredos ficam em variáveis de ambiente no backend, nunca no código do navegador.

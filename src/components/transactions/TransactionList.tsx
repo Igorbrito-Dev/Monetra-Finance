@@ -5,6 +5,7 @@ import { useAccounts } from '../../hooks/useAccounts';
 import { useCreditCards } from '../../hooks/useCreditCards';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { getBillStatusStyle } from '../../lib/billStatusStyles';
+import { useCategoryRules } from '../../hooks/useCategoryRules';
 import { Button } from '../ui/Button';
 import { TransactionModal } from './TransactionModal';
 import { ImportModal } from '../import/ImportModal';
@@ -22,6 +23,8 @@ import {
   Filter,
   Receipt,
   Pencil,
+  Copy,
+  CheckSquare,
 } from 'lucide-react';
 
 const MONTH_NAMES = [
@@ -41,15 +44,66 @@ export const TransactionList: React.FC = () => {
     setFilter,
     createTransaction,
     updateTransaction,
+    bulkUpdate,
+    bulkDelete,
     togglePaidStatus,
     deleteTransaction,
   } = useTransactions();
+  const { learn } = useCategoryRules();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTx, setSelectedTx] = useState<typeof transactions[0] | null>(null);
   const [editingTx, setEditingTx] = useState<typeof transactions[0] | null>(null);
+  const [repeatTx, setRepeatTx] = useState<typeof transactions[0] | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkCategory, setBulkCategory] = useState('');
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    setBulkCategory('');
+  };
+
+  const handleBulkCategory = async () => {
+    if (!bulkCategory || selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    const { error } = await bulkUpdate(ids, { category_id: bulkCategory });
+    if (error) {
+      alert(`Não foi possível alterar: ${error.message}`);
+      return;
+    }
+    // Aprende a categoria escolhida para as próximas descrições parecidas
+    const seen = new Set<string>();
+    for (const tx of transactions) {
+      if (!ids.includes(tx.id) || seen.has(tx.description)) continue;
+      seen.add(tx.description);
+      await learn(tx.description, bulkCategory);
+    }
+    exitSelectMode();
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Excluir ${selectedIds.size} lançamento(s)? Esta ação não pode ser desfeita.`)) return;
+    const { error } = await bulkDelete(Array.from(selectedIds));
+    if (error) {
+      alert(`Não foi possível excluir: ${error.message}`);
+      return;
+    }
+    exitSelectMode();
+  };
 
   const handlePrevMonth = () => {
     let newMonth = filter.month - 1;
@@ -160,6 +214,17 @@ export const TransactionList: React.FC = () => {
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
+
+          <Button
+            variant={selectMode ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+            className="text-xs font-semibold"
+            title="Selecionar vários lançamentos"
+          >
+            <CheckSquare className="w-3.5 h-3.5 mr-1" />
+            <span className="hidden sm:inline">{selectMode ? 'Cancelar' : 'Selecionar'}</span>
+          </Button>
 
           <Button
             variant="outline"
@@ -284,11 +349,24 @@ export const TransactionList: React.FC = () => {
                     return (
                       <div
                         key={tx.id}
-                        onClick={() => setSelectedTx(selectedTx?.id === tx.id ? null : tx)}
-                        className="flex items-center justify-between p-3.5 sm:p-4 hover:bg-slate-50/70 transition-colors cursor-pointer group"
+                        onClick={() =>
+                          selectMode ? toggleSelected(tx.id) : setSelectedTx(selectedTx?.id === tx.id ? null : tx)
+                        }
+                        className={`flex items-center justify-between p-3.5 sm:p-4 transition-colors cursor-pointer group ${
+                          selectedIds.has(tx.id) ? 'bg-emerald-50/70' : 'hover:bg-slate-50/70'
+                        }`}
                       >
                         {/* Left: Icon & Description/Category */}
                         <div className="flex items-center gap-3 min-w-0 pr-3">
+                          {selectMode && (
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(tx.id)}
+                              readOnly
+                              className="rounded border-slate-300 text-emerald-600 w-4 h-4 flex-shrink-0"
+                              aria-label="Selecionar lançamento"
+                            />
+                          )}
                           <div
                             className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 ${
                               isIncome
@@ -444,6 +522,21 @@ export const TransactionList: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => {
+                  setRepeatTx(selectedTx);
+                  setSelectedTx(null);
+                  setIsModalOpen(true);
+                }}
+                className="text-xs px-3"
+                aria-label="Repetir lançamento"
+                title="Repetir com a data de hoje"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
                   setEditingTx(selectedTx);
                   setSelectedTx(null);
                   setIsModalOpen(true);
@@ -472,16 +565,66 @@ export const TransactionList: React.FC = () => {
         </div>
       )}
 
+      {/* Barra de ações em massa */}
+      {selectMode && (
+        <div className="fixed left-3 right-3 bottom-24 md:bottom-6 md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-[34rem] z-40">
+          <div className="bg-slate-900 text-white rounded-2xl shadow-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2">
+            <span className="text-xs font-semibold flex-shrink-0">
+              {selectedIds.size} selecionado{selectedIds.size === 1 ? '' : 's'}
+            </span>
+            <select
+              value={bulkCategory}
+              onChange={(e) => setBulkCategory(e.target.value)}
+              className="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-white focus:outline-none"
+              aria-label="Nova categoria"
+            >
+              <option value="">Trocar categoria para...</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleBulkCategory}
+                disabled={!bulkCategory || selectedIds.size === 0}
+                className="text-xs"
+              >
+                Aplicar
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleBulkDelete}
+                disabled={selectedIds.size === 0}
+                className="text-xs"
+                aria-label="Excluir selecionados"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modais de Criação e Importação */}
       <TransactionModal
         isOpen={isModalOpen}
-        initialValues={editingTx}
+        initialValues={editingTx ?? repeatTx}
+        isRepeat={Boolean(repeatTx) && !editingTx}
         onClose={() => {
           setIsModalOpen(false);
           setEditingTx(null);
+          setRepeatTx(null);
         }}
         onSubmit={async (formData) => {
           if (editingTx) {
+            if (formData.category_id && formData.category_id !== editingTx.category_id) {
+              learn(formData.description, formData.category_id);
+            }
             await updateTransaction(editingTx.id, {
               description: formData.description,
               amount: formData.amount,

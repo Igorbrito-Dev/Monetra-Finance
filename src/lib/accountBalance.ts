@@ -15,6 +15,22 @@ export interface BalanceTransaction {
   is_paid: boolean;
 }
 
+export interface ReconciliationPlan {
+  /** Diferença absoluta entre o saldo do banco e o do app */
+  amount: number;
+  /** 'income' quando falta uma entrada no app, 'expense' quando falta uma saída, null quando bate */
+  type: 'income' | 'expense' | null;
+}
+
+/**
+ * Compara o saldo do app com o do banco e indica o lançamento de ajuste necessário.
+ */
+export function planReconciliation(appBalance: number, bankBalance: number): ReconciliationPlan {
+  const diffCents = Math.round(bankBalance * 100) - Math.round(appBalance * 100);
+  if (diffCents === 0) return { amount: 0, type: null };
+  return { amount: Math.abs(diffCents) / 100, type: diffCents > 0 ? 'income' : 'expense' };
+}
+
 export function computeAccountBalances(
   accounts: BalanceAccount[],
   transactions: BalanceTransaction[]

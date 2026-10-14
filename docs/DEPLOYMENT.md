@@ -126,6 +126,24 @@ Teste manual: `curl -X POST -H "x-cron-secret: <CRON_SECRET>" https://seu-app.ve
 
 Para pausar: `select cron.unschedule('monetra-tick');`
 
+## 5.2.1 Migrations adicionais
+
+Rode também, no SQL Editor (todas são aditivas e reexecutáveis):
+
+- `20261015000000_account_balances_budget_alerts.sql`: saldo calculado das contas e alerta de teto.
+- `20261016000000_budgets_rules_ai_usage.sql`: orçamento por categoria, regras de categorização aprendidas e controle de uso da IA.
+
+## 5.2.2 Leitura de comprovante por foto
+
+`POST /api/ai/receipt` usa o modelo de visão da OpenAI (`OPENAI_API_KEY`). Há limite de **15 leituras por usuário a cada 24h**
+(constante `DAILY_LIMIT` em `api/ai/receipt.ts`) para controlar custo. A foto é reduzida no navegador (1280px, JPEG) e
+**nada é gravado automaticamente**: o app preenche o formulário e o usuário confirma.
+
+## 5.2.3 App instalável (PWA)
+
+O app publica `manifest.webmanifest`, ícones e `sw.js`. Em produção, navegadores compatíveis oferecem "Instalar app" /
+"Adicionar à tela inicial". O service worker não intercepta `/api` nem o Supabase, então dados financeiros nunca vêm de cache.
+
 ## 5.3 Regras de negócio relevantes (cartão e contas fixas)
 
 - **Fechamento do cartão:** compra feita **no dia do fechamento ou depois** entra na fatura do **mês seguinte**; antes do fechamento, na fatura atual.

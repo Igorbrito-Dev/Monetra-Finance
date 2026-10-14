@@ -379,6 +379,37 @@ export function useTransactions(initialFilter?: Partial<TransactionFilter>) {
     return { error: err };
   };
 
+  /** Altera vários lançamentos de uma vez (ex.: trocar a categoria). */
+  const bulkUpdate = async (ids: string[], patch: { category_id?: string | null; is_paid?: boolean }) => {
+    if (ids.length === 0) return { error: null };
+
+    if (isDemoMode) {
+      setTransactions((prev) => prev.map((t) => (ids.includes(t.id) ? { ...t, ...patch } : t)));
+      return { error: null };
+    }
+
+    const { error: err } = await supabase.from('transactions').update(patch).in('id', ids);
+    if (!err) {
+      setTransactions((prev) => prev.map((t) => (ids.includes(t.id) ? { ...t, ...patch } : t)));
+    }
+    return { error: err };
+  };
+
+  const bulkDelete = async (ids: string[]) => {
+    if (ids.length === 0) return { error: null };
+
+    if (isDemoMode) {
+      setTransactions((prev) => prev.filter((t) => !ids.includes(t.id)));
+      return { error: null };
+    }
+
+    const { error: err } = await supabase.from('transactions').delete().in('id', ids);
+    if (!err) {
+      setTransactions((prev) => prev.filter((t) => !ids.includes(t.id)));
+    }
+    return { error: err };
+  };
+
   const deleteTransaction = async (id: string, deleteGroup = false) => {
     const target = transactions.find((t) => t.id === id);
 
@@ -424,6 +455,8 @@ export function useTransactions(initialFilter?: Partial<TransactionFilter>) {
     createTransaction,
     togglePaidStatus,
     updateTransaction,
+    bulkUpdate,
+    bulkDelete,
     deleteTransaction,
   };
 }

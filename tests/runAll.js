@@ -13,6 +13,7 @@ const testFiles = [
   'tests/cardImport.test.ts',
   'tests/statementImport.test.ts',
   'tests/invoices.test.ts',
+  'tests/spendingInsights.test.ts',
 ];
 
 let failed = false;

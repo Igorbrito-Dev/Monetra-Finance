@@ -4,6 +4,7 @@ import { useAccounts } from '../../hooks/useAccounts';
 import { useCategories } from '../../hooks/useCategories';
 import { useCreditCards } from '../../hooks/useCreditCards';
 import { useUpcomingCommitments } from '../../hooks/useUpcomingCommitments';
+import { usePrivacy } from '../../hooks/usePrivacy';
 import { calculateMonthSummary } from '../../lib/financeRules';
 import { formatCurrency } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
@@ -52,7 +53,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateToTab, o
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [isCardModalOpen, setIsCardModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [hideValues, setHideValues] = useState(false);
+  const { hideValues, toggle: toggleHideValues } = usePrivacy();
 
   // Budget editing state
   const [isEditingBudget, setIsEditingBudget] = useState(false);
@@ -157,7 +158,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateToTab, o
                 Saldo disponível
               </span>
               <button
-                onClick={() => setHideValues(!hideValues)}
+                onClick={toggleHideValues}
                 className="text-emerald-200/80 hover:text-white transition-colors cursor-pointer p-0.5"
                 title={hideValues ? 'Mostrar Valores' : 'Ocultar Valores'}
               >

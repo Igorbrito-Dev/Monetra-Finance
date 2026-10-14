@@ -1,4 +1,4 @@
-import { computeAccountBalances } from '../src/lib/accountBalance.ts';
+import { computeAccountBalances, planReconciliation } from '../src/lib/accountBalance.ts';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {

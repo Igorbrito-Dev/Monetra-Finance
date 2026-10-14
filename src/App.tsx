@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AuthPage } from './components/auth/AuthPage';
 import { AppNavbar, type ActiveTab } from './components/layout/AppNavbar';
@@ -12,6 +12,10 @@ import { MoreView } from './components/more/MoreView';
 import { AgentChatView } from './components/chat/AgentChatView';
 import { RecurringBillsView } from './components/recurring/RecurringBillsView';
 import { InvoicesView } from './components/invoices/InvoicesView';
+import { PlanningView } from './components/planning/PlanningView';
+import { QuickAddSheet, type QuickAddPayload } from './components/transactions/QuickAddSheet';
+import { useInsightsData } from './hooks/useInsightsData';
+import { useCategoryRules } from './hooks/useCategoryRules';
 import { TransactionModal } from './components/transactions/TransactionModal';
 import { useCategories } from './hooks/useCategories';
 import { useAccounts } from './hooks/useAccounts';
@@ -25,7 +29,36 @@ const DashboardContent: React.FC = () => {
   const { categories } = useCategories();
   const { accounts } = useAccounts();
   const { cards } = useCreditCards();
-  const { createTransaction } = useTransactions();
+  const { createTransaction, deleteTransaction } = useTransactions();
+  const { transactions: history, refetch: refetchHistory } = useInsightsData();
+  const { rules, learn } = useCategoryRules();
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [toast, setToast] = useState<{ message: string; warning?: string; ids: string[] } | null>(null);
+
+  // O aviso de lançamento some sozinho
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), toast.warning ? 12000 : 7000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  const handleQuickSubmit = async (payload: QuickAddPayload) => {
+    const { data, error } = await createTransaction(payload);
+    if (error) {
+      return { ids: [] as string[], error: error as Error };
+    }
+    const ids = ((data as { id: string }[] | null) ?? []).map((row) => row.id);
+    return { ids, error: null };
+  };
+
+  const handleUndo = async () => {
+    if (!toast) return;
+    for (const id of toast.ids) {
+      await deleteTransaction(id);
+    }
+    setToast(null);
+    refetchHistory();
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col relative selection:bg-emerald-500/20 selection:text-emerald-900">
@@ -33,7 +66,7 @@ const DashboardContent: React.FC = () => {
       <AppNavbar
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        onOpenNewTransaction={() => setIsGlobalTxModalOpen(true)}
+        onOpenNewTransaction={() => setIsQuickAddOpen(true)}
       />
 
       {/* Main Container */}
@@ -41,7 +74,7 @@ const DashboardContent: React.FC = () => {
         {activeTab === 'overview' && (
           <DashboardView
             onNavigateToTab={setActiveTab}
-            onOpenNewTransaction={() => setIsGlobalTxModalOpen(true)}
+            onOpenNewTransaction={() => setIsQuickAddOpen(true)}
           />
         )}
 
@@ -81,6 +114,12 @@ const DashboardContent: React.FC = () => {
           </div>
         )}
 
+        {activeTab === 'planning' && (
+          <div className="animate-in fade-in duration-200">
+            <PlanningView />
+          </div>
+        )}
+
         {activeTab === 'invoices' && (
           <div className="animate-in fade-in duration-200">
             <InvoicesView />
@@ -99,6 +138,45 @@ const DashboardContent: React.FC = () => {
           </div>
         )}
       </main>
+
+      {/* Lançamento rápido (botão central +) */}
+      <QuickAddSheet
+        isOpen={isQuickAddOpen}
+        onClose={() => setIsQuickAddOpen(false)}
+        onMoreDetails={() => {
+          setIsQuickAddOpen(false);
+          setIsGlobalTxModalOpen(true);
+        }}
+        history={history}
+        categories={categories}
+        accounts={accounts}
+        cards={cards}
+        rules={rules}
+        onSubmit={handleQuickSubmit}
+        onLearn={learn}
+        onSaved={(info) => {
+          setToast(info);
+          refetchHistory();
+        }}
+      />
+
+      {/* Aviso de lançamento com opção de desfazer */}
+      {toast && (
+        <div className="fixed left-3 right-3 bottom-24 md:bottom-6 md:left-auto md:right-6 md:w-96 z-[60]">
+          <div role="status" className="bg-slate-900 text-white rounded-2xl shadow-xl px-4 py-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-semibold">{toast.message}</span>
+              <button
+                onClick={handleUndo}
+                className="text-emerald-300 hover:text-emerald-200 font-bold text-xs uppercase tracking-wide cursor-pointer"
+              >
+                Desfazer
+              </button>
+            </div>
+            {toast.warning && <p className="text-amber-300 text-xs mt-1.5">{toast.warning}</p>}
+          </div>
+        </div>
+      )}
 
       {/* Global Quick Transaction Modal triggered by central (+) button on mobile or header */}
       <TransactionModal

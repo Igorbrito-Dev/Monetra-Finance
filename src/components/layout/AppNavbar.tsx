@@ -13,6 +13,7 @@ import {
   MessageSquare,
   CalendarClock,
   FileText,
+  Target,
   MoreHorizontal,
   Plus,
   Bot,
@@ -29,6 +30,7 @@ export type ActiveTab =
   | 'assistant'
   | 'bills'
   | 'invoices'
+  | 'planning'
   | 'more';
 
 interface AppNavbarProps {
@@ -54,6 +56,7 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
     { id: 'accounts' as const, label: 'Contas', icon: Wallet },
     { id: 'cards' as const, label: 'Cartões', icon: CreditCard },
     { id: 'categories' as const, label: 'Categorias', icon: Tag },
+    { id: 'planning' as const, label: 'Planejar', icon: Target },
     { id: 'invoices' as const, label: 'Faturas', icon: FileText },
     { id: 'bills' as const, label: 'Contas fixas', icon: CalendarClock },
     { id: 'assistant' as const, label: 'Assistente', icon: MessageSquare },
@@ -228,7 +231,8 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
               activeTab === 'categories' ||
               activeTab === 'assistant' ||
               activeTab === 'bills' ||
-              activeTab === 'invoices'
+              activeTab === 'invoices' ||
+              activeTab === 'planning'
                 ? 'text-emerald-600'
                 : 'text-slate-400 hover:text-slate-600'
             }`}

@@ -5,6 +5,8 @@ import { sheetRowsToCsv } from '../../lib/spreadsheet';
 import { classifyCardNegative, detectInstallment, markCardDuplicates } from '../../lib/cardImport';
 import { getInvoiceForPurchase, formatIsoDateBR } from '../../lib/creditCardRules';
 import { readSheet } from 'read-excel-file/browser';
+import { useCategoryRules } from '../../hooks/useCategoryRules';
+import { matchCategoryRule } from '../../lib/categoryRules';
 import { detectDuplicates, suggestCategory } from '../../lib/importMatching';
 import { useCategories } from '../../hooks/useCategories';
 import { useAccounts } from '../../hooks/useAccounts';
@@ -88,6 +90,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
   const { cards } = useCreditCards();
   const { transactions, refetch: refetchTransactions } = useTransactions();
   const { commitImportBatch, commitCardImport, fetchCardTransactions } = useImportBatches();
+  const { rules, learn } = useCategoryRules();
 
   const [step, setStep] = useState<'upload' | 'preview' | 'success'>('upload');
   const [filename, setFilename] = useState('');
@@ -125,7 +128,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
       const context = destinationType === 'card' ? 'card' : 'account';
       const parsed = sourceToRows(source, context).map((row) => ({
         ...row,
-        suggestedCategoryId: suggestCategory(row.description, categories),
+        suggestedCategoryId: matchCategoryRule(row.description, rules) ?? suggestCategory(row.description, categories),
       }));
 
       let result: ParsedTransactionRow[];
@@ -206,6 +209,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
   };
 
   const handleCategoryChange = (index: number, categoryId: string) => {
+    if (categoryId) learn(rows[index]?.description ?? '', categoryId);
     setRows((prev) =>
       prev.map((r, i) => (i === index ? { ...r, suggestedCategoryId: categoryId || null } : r))
     );
