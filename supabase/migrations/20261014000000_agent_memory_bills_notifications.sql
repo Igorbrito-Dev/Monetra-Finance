@@ -1,5 +1,6 @@
 -- Migration: memória do agente, contas fixas recorrentes, notificações e preferências de lembretes.
 -- Apenas ADITIVA: não remove nem altera dados existentes.
+-- Reexecutável (idempotente): pode ser rodada novamente sem erro.
 
 -- =====================================================================
 -- 1. Memória de conversa do agente (Telegram e chat web)
@@ -15,10 +16,12 @@ CREATE TABLE IF NOT EXISTS public.agent_messages (
 
 ALTER TABLE public.agent_messages ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Usuários leem apenas suas próprias mensagens do agente" ON public.agent_messages;
 CREATE POLICY "Usuários leem apenas suas próprias mensagens do agente"
     ON public.agent_messages FOR SELECT
     USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Usuários removem apenas suas próprias mensagens do agente" ON public.agent_messages;
 CREATE POLICY "Usuários removem apenas suas próprias mensagens do agente"
     ON public.agent_messages FOR DELETE
     USING (auth.uid() = user_id);
@@ -52,6 +55,7 @@ CREATE TABLE IF NOT EXISTS public.recurring_bills (
 
 ALTER TABLE public.recurring_bills ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Usuários gerenciam apenas suas próprias contas fixas" ON public.recurring_bills;
 CREATE POLICY "Usuários gerenciam apenas suas próprias contas fixas"
     ON public.recurring_bills FOR ALL
     USING (auth.uid() = user_id)
@@ -59,6 +63,7 @@ CREATE POLICY "Usuários gerenciam apenas suas próprias contas fixas"
 
 CREATE INDEX IF NOT EXISTS idx_recurring_bills_user ON public.recurring_bills(user_id, active);
 
+DROP TRIGGER IF EXISTS update_recurring_bills_updated_at ON public.recurring_bills;
 CREATE TRIGGER update_recurring_bills_updated_at
     BEFORE UPDATE ON public.recurring_bills
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -102,10 +107,12 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Usuários leem apenas suas próprias notificações" ON public.notifications;
 CREATE POLICY "Usuários leem apenas suas próprias notificações"
     ON public.notifications FOR SELECT
     USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Usuários atualizam apenas suas próprias notificações" ON public.notifications;
 CREATE POLICY "Usuários atualizam apenas suas próprias notificações"
     ON public.notifications FOR UPDATE
     USING (auth.uid() = user_id)
