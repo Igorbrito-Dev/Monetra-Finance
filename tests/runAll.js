@@ -10,6 +10,8 @@ const testFiles = [
   'tests/billRules.test.ts',
   'tests/accountBalance.test.ts',
   'tests/cardUsage.test.ts',
+  'tests/cardImport.test.ts',
+  'tests/statementImport.test.ts',
 ];
 
 let failed = false;

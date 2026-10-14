@@ -1,3 +1,5 @@
+import { detectInstallment, classifyCardNegative, type StatementKind } from './cardImport.ts';
+
 export interface ParsedTransactionRow {
   rawDate: string;
   normalizedDate: string;
@@ -8,6 +10,21 @@ export interface ParsedTransactionRow {
   isDuplicate?: boolean;
   duplicateReason?: string;
   selected: boolean;
+  /** Em fatura de cartão: compra, pagamento da fatura ou estorno/crédito */
+  kind?: StatementKind;
+  installmentNumber?: number | null;
+  totalInstallments?: number | null;
+  baseDescription?: string;
+  /** Identificador do banco (ex.: FITID do OFX) */
+  externalId?: string | null;
+}
+
+export interface ParseOptions {
+  /**
+   * 'account' (padrão): valor negativo = saída.
+   * 'card': fatura de cartão, valor positivo = compra; negativo = pagamento/estorno.
+   */
+  context?: 'account' | 'card';
 }
 
 /**
@@ -99,7 +116,8 @@ export function normalizeDateString(dateStr: string): string {
 /**
  * Faz o parsing de um conteúdo CSV e extrai as linhas normalizadas
  */
-export function parseCSVContent(csvText: string): ParsedTransactionRow[] {
+export function parseCSVContent(csvText: string, options: ParseOptions = {}): ParsedTransactionRow[] {
+  const context = options.context ?? 'account';
   if (!csvText || !csvText.trim()) {
     return [];
   }
@@ -155,15 +173,54 @@ export function parseCSVContent(csvText: string): ParsedTransactionRow[] {
       .replace(/[\u0300-\u036f]/g, '');
     const isIncomeByKeyword = INCOME_KEYWORDS.some((kw) => descLower.includes(kw));
 
+    const finalDescription = description || 'Transação Importada';
+    const installment = detectInstallment(finalDescription);
+    const installmentFields = installment
+      ? {
+          installmentNumber: installment.number,
+          totalInstallments: installment.total,
+          baseDescription: installment.baseDescription,
+        }
+      : {};
+
+    if (context === 'card') {
+      // Fatura de cartão: positivo = compra; negativo = pagamento da fatura ou estorno/crédito
+      if (isNegative) {
+        const kind = classifyCardNegative(finalDescription);
+        rows.push({
+          rawDate,
+          normalizedDate: normalizeDateString(rawDate),
+          description: finalDescription,
+          amount,
+          type: kind === 'refund' ? 'income' : 'expense',
+          kind,
+          selected: false,
+        });
+      } else {
+        rows.push({
+          rawDate,
+          normalizedDate: normalizeDateString(rawDate),
+          description: finalDescription,
+          amount,
+          type: 'expense',
+          kind: 'purchase',
+          selected: true,
+          ...installmentFields,
+        });
+      }
+      continue;
+    }
+
     const type: 'income' | 'expense' = isNegative ? 'expense' : (isIncomeByKeyword ? 'income' : 'expense');
 
     rows.push({
       rawDate,
       normalizedDate: normalizeDateString(rawDate),
-      description: description || 'Transação Importada',
+      description: finalDescription,
       amount,
       type,
       selected: true,
+      ...installmentFields,
     });
   }
 

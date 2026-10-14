@@ -1,5 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { parseCSVContent, type ParsedTransactionRow } from '../../lib/fileParser';
+import { parseOfxContent, type OfxTransaction } from '../../lib/ofxParser';
+import { sheetRowsToCsv } from '../../lib/spreadsheet';
+import { classifyCardNegative, detectInstallment, markCardDuplicates } from '../../lib/cardImport';
+import { getInvoiceForPurchase, formatIsoDateBR } from '../../lib/creditCardRules';
+import { readSheet } from 'read-excel-file/browser';
 import { detectDuplicates, suggestCategory } from '../../lib/importMatching';
 import { useCategories } from '../../hooks/useCategories';
 import { useAccounts } from '../../hooks/useAccounts';
@@ -32,6 +37,46 @@ interface ImportModalProps {
   onSuccess?: () => void;
 }
 
+type ImportSource =
+  | { kind: 'csv'; text: string }
+  | { kind: 'ofx'; items: OfxTransaction[] };
+
+/** Converte a origem (CSV/XLSX/OFX) em linhas, respeitando se o destino é conta ou cartão. */
+function sourceToRows(source: ImportSource, context: 'account' | 'card'): ParsedTransactionRow[] {
+  if (source.kind === 'csv') {
+    return parseCSVContent(source.text, { context });
+  }
+
+  return source.items.map((item) => {
+    const negative = item.amount < 0;
+    const amount = Math.abs(item.amount);
+    const installment = detectInstallment(item.description);
+    const base: ParsedTransactionRow = {
+      rawDate: item.date,
+      normalizedDate: item.date,
+      description: item.description,
+      amount,
+      type: negative ? 'expense' : 'income',
+      selected: true,
+      externalId: item.fitId,
+      ...(installment
+        ? {
+            installmentNumber: installment.number,
+            totalInstallments: installment.total,
+            baseDescription: installment.baseDescription,
+          }
+        : {}),
+    };
+
+    if (context !== 'card') return base;
+
+    // OFX de cartão: compras são negativas; créditos positivos são pagamento da fatura ou estorno
+    if (negative) return { ...base, type: 'expense', kind: 'purchase' };
+    const kind = classifyCardNegative(item.description);
+    return { ...base, type: kind === 'refund' ? 'income' : 'expense', kind, selected: false };
+  });
+}
+
 export const ImportModal: React.FC<ImportModalProps> = ({
   isOpen,
   onClose,
@@ -42,7 +87,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
   const { accounts } = useAccounts();
   const { cards } = useCreditCards();
   const { transactions, refetch: refetchTransactions } = useTransactions();
-  const { commitImportBatch } = useImportBatches();
+  const { commitImportBatch, commitCardImport, fetchCardTransactions } = useImportBatches();
 
   const [step, setStep] = useState<'upload' | 'preview' | 'success'>('upload');
   const [filename, setFilename] = useState('');
@@ -52,11 +97,59 @@ export const ImportModal: React.FC<ImportModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [importedCount, setImportedCount] = useState(0);
+  const [source, setSource] = useState<ImportSource | null>(null);
+  const [invoiceDueDate, setInvoiceDueDate] = useState('');
+  const [dueTouched, setDueTouched] = useState(false);
+  const [createFuture, setCreateFuture] = useState(true);
+
+  const selectedCard = destinationType === 'card' ? cards.find((c) => c.id === destinationId) : undefined;
+
+  // Sugere o vencimento da fatura a partir da compra mais recente do arquivo e do cartão escolhido
+  useEffect(() => {
+    if (!source || !selectedCard || dueTouched) return;
+    const dates = sourceToRows(source, 'card')
+      .filter((r) => r.kind === 'purchase' || !r.kind)
+      .map((r) => r.normalizedDate)
+      .sort();
+    const latest = dates[dates.length - 1];
+    if (!latest) return;
+    setInvoiceDueDate(getInvoiceForPurchase(latest, selectedCard.closing_day, selectedCard.due_day).dueDate);
+  }, [source, selectedCard, dueTouched]);
+
+  // (Re)monta as linhas quando muda o arquivo, o destino ou o vencimento da fatura
+  useEffect(() => {
+    if (!source) return;
+    let cancelled = false;
+
+    (async () => {
+      const context = destinationType === 'card' ? 'card' : 'account';
+      const parsed = sourceToRows(source, context).map((row) => ({
+        ...row,
+        suggestedCategoryId: suggestCategory(row.description, categories),
+      }));
+
+      let result: ParsedTransactionRow[];
+      if (context === 'card' && destinationId && invoiceDueDate) {
+        const existing = await fetchCardTransactions(destinationId);
+        result = markCardDuplicates(parsed, existing, invoiceDueDate);
+      } else {
+        result = detectDuplicates(parsed, transactions);
+      }
+
+      if (!cancelled) setRows(result);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source, destinationType, destinationId, invoiceDueDate]);
 
   if (!isOpen) return null;
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
@@ -68,38 +161,38 @@ export const ImportModal: React.FC<ImportModalProps> = ({
     setError(null);
     setLoading(true);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const text = event.target?.result as string;
-        const parsed = parseCSVContent(text);
+    try {
+      const lowerName = file.name.toLowerCase();
+      let nextSource: ImportSource;
 
-        if (parsed.length === 0) {
-          setError('Nenhum registro financeiro válido foi encontrado no arquivo.');
-          setLoading(false);
-          return;
-        }
-
-        // Sugere categorias com base no catálogo do usuário
-        const withCategories = parsed.map((row) => ({
-          ...row,
-          suggestedCategoryId: suggestCategory(row.description, categories),
-        }));
-
-        // Detecta duplicidades contra transações já registradas
-        const withDuplicates = detectDuplicates(withCategories, transactions);
-
-        setRows(withDuplicates);
-        setStep('preview');
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Erro ao processar arquivo';
-        setError(msg);
-      } finally {
-        setLoading(false);
+      if (lowerName.endsWith('.xlsx')) {
+        const sheetRows = (await readSheet(file)) as unknown[][];
+        nextSource = { kind: 'csv', text: sheetRowsToCsv(sheetRows) };
+      } else if (lowerName.endsWith('.ofx')) {
+        nextSource = { kind: 'ofx', items: parseOfxContent(await file.text()) };
+      } else if (lowerName.endsWith('.xls')) {
+        setError('Arquivos .xls antigos não são suportados. Salve a planilha como .xlsx ou .csv.');
+        return;
+      } else {
+        nextSource = { kind: 'csv', text: await file.text() };
       }
-    };
 
-    reader.readAsText(file);
+      const probe = sourceToRows(nextSource, 'account');
+      if (probe.length === 0) {
+        setError('Nenhum registro financeiro válido foi encontrado no arquivo.');
+        return;
+      }
+
+      setDueTouched(false);
+      setInvoiceDueDate('');
+      setSource(nextSource);
+      setStep('preview');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao processar arquivo';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleToggleRow = (index: number) => {
@@ -133,15 +226,24 @@ export const ImportModal: React.FC<ImportModalProps> = ({
       return;
     }
 
+    if (destinationType === 'card' && (!destinationId || !invoiceDueDate)) {
+      setError('Escolha o cartão e informe o vencimento da fatura para importar.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      const destination = destinationType === 'account'
-        ? { accountId: destinationId || null }
-        : { creditCardId: destinationId || null };
-
-      const result = await commitImportBatch(filename, rows, destination);
+      const result =
+        destinationType === 'card' && selectedCard
+          ? await commitCardImport(filename, rows, {
+              creditCardId: selectedCard.id,
+              invoiceDueDate,
+              dueDay: selectedCard.due_day,
+              createFutureInstallments: createFuture,
+            })
+          : await commitImportBatch(filename, rows, { accountId: destinationId || null });
 
       if (result.error) {
         setError(result.error.message);
@@ -199,17 +301,17 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                 <Upload className="w-8 h-8" />
               </div>
               <h4 className="text-base font-bold text-slate-900 mb-1">
-                Clique para selecionar ou arraste seu arquivo CSV
+                Clique para selecionar o arquivo do extrato ou da fatura
               </h4>
               <p className="text-xs text-slate-500 max-w-sm mb-4">
                 Suporta extratos bancários e faturas de cartão de crédito do Nubank, Itaú, Bradesco, Inter, C6, etc. (Máx: 5MB).
               </p>
               <span className="text-xs font-bold px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 group-hover:border-emerald-300 shadow-xs">
-                Selecionar Arquivo .CSV
+                Selecionar arquivo (.csv, .ofx, .xlsx)
               </span>
               <input
                 type="file"
-                accept=".csv,.txt"
+                accept=".csv,.txt,.ofx,.xlsx"
                 onChange={handleFileUpload}
                 className="hidden"
               />
@@ -287,7 +389,10 @@ export const ImportModal: React.FC<ImportModalProps> = ({
 
                 <select
                   value={destinationId}
-                  onChange={(e) => setDestinationId(e.target.value)}
+                  onChange={(e) => {
+                    setDestinationId(e.target.value);
+                    setDueTouched(false);
+                  }}
                   className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-emerald-500 font-medium"
                 >
                   <option value="">Selecione o destino (opcional)</option>
@@ -305,6 +410,53 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                 </select>
               </div>
             </div>
+
+            {/* Opções da fatura de cartão */}
+            {destinationType === 'card' && (
+              <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-200 text-xs text-indigo-900 space-y-3">
+                {!selectedCard ? (
+                  <p className="font-semibold">
+                    Selecione o cartão acima para definir o vencimento da fatura e identificar parcelas já registradas.
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                      <label className="font-semibold" htmlFor="invoice-due">
+                        Vencimento desta fatura
+                      </label>
+                      <input
+                        id="invoice-due"
+                        type="date"
+                        value={invoiceDueDate}
+                        onChange={(e) => {
+                          setInvoiceDueDate(e.target.value);
+                          setDueTouched(true);
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-white border border-indigo-200 text-slate-800 text-xs focus:outline-none focus:border-indigo-500"
+                      />
+                      {invoiceDueDate && (
+                        <span className="text-indigo-700">
+                          As compras entram na fatura que vence em <strong>{formatIsoDateBR(invoiceDueDate)}</strong>.
+                        </span>
+                      )}
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold">
+                      <input
+                        type="checkbox"
+                        checked={createFuture}
+                        onChange={(e) => setCreateFuture(e.target.checked)}
+                        className="rounded border-indigo-300 text-indigo-600 w-4 h-4"
+                      />
+                      Criar as parcelas futuras das compras parceladas (compromissos dos próximos meses)
+                    </label>
+                    <p className="text-indigo-700">
+                      Pagamentos da fatura e estornos vêm desmarcados: o pagamento não conta como despesa e o estorno só
+                      entra se você marcar.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
 
             {/* Quick Actions & Duplicate Alert */}
             <div className="flex items-center justify-between text-xs px-1">
@@ -371,6 +523,24 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                       <td className="p-3 text-slate-800 font-medium">
                         <div>
                           <span>{row.description}</span>
+                          {row.kind === 'payment' && (
+                            <span className="text-[10px] text-blue-700 block mt-0.5 font-sans font-semibold">
+                              Pagamento da fatura (não conta como despesa)
+                            </span>
+                          )}
+                          {row.kind === 'refund' && (
+                            <span className="text-[10px] text-emerald-700 block mt-0.5 font-sans font-semibold">
+                              Estorno / crédito na fatura
+                            </span>
+                          )}
+                          {row.installmentNumber && row.totalInstallments && (
+                            <span className="text-[10px] text-indigo-700 block mt-0.5 font-sans font-semibold">
+                              Parcela {row.installmentNumber}/{row.totalInstallments}
+                              {destinationType === 'card' && createFuture && row.installmentNumber < row.totalInstallments
+                                ? ` • gera mais ${row.totalInstallments - row.installmentNumber} futura(s)`
+                                : ''}
+                            </span>
+                          )}
                           {row.isDuplicate && (
                             <span className="text-[10px] text-amber-700 block mt-0.5 font-sans font-semibold">
                               ⚠️ {row.duplicateReason}
