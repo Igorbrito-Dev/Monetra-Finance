@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useCreditCards } from '../../hooks/useCreditCards';
+import { useCardUsage } from '../../hooks/useCardUsage';
 import { formatCurrency } from '../../lib/utils';
 import { Button } from '../ui/Button';
 import { CreditCardModal } from './CreditCardModal';
@@ -10,7 +11,11 @@ export const CreditCardList: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCard, setSelectedCard] = useState<typeof cards[0] | null>(null);
 
+  const { usage } = useCardUsage();
+
   const totalLimit = cards.reduce((acc, curr) => acc + (curr.limit_amount || 0), 0);
+  const totalUsed = cards.reduce((acc, curr) => acc + (usage.get(curr.id) ?? 0), 0);
+  const totalAvailable = totalLimit - totalUsed;
 
   return (
     <div className="space-y-5 max-w-4xl mx-auto animate-in fade-in duration-200">
@@ -43,10 +48,10 @@ export const CreditCardList: React.FC = () => {
             Limite disponível
           </span>
           <div className="text-2xl sm:text-3xl font-extrabold font-mono tracking-tight text-white mb-2">
-            {formatCurrency(totalLimit)}
+            {formatCurrency(totalAvailable)}
           </div>
           <span className="text-xs text-emerald-300/80">
-            Limite total {formatCurrency(totalLimit)}
+            Em uso {formatCurrency(totalUsed)} • Limite total {formatCurrency(totalLimit)}
           </span>
         </div>
 
@@ -106,10 +111,10 @@ export const CreditCardList: React.FC = () => {
               <div className="flex items-center gap-2 flex-shrink-0">
                 <div className="text-right">
                   <span className="text-sm sm:text-base font-extrabold font-mono text-slate-900 block leading-tight">
-                    {formatCurrency(card.limit_amount || 0)}
+                    {formatCurrency((card.limit_amount || 0) - (usage.get(card.id) ?? 0))}
                   </span>
                   <span className="text-[10px] text-slate-400 block mt-0.5">
-                    Limite
+                    Disponível de {formatCurrency(card.limit_amount || 0)}
                   </span>
                 </div>
                 <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all" />

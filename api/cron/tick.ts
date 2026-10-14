@@ -79,7 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
-      .select('id, telegram_chat_id, daily_report_enabled, daily_report_hour, bill_reminder_days, card_reminder_days');
+      .select('id, telegram_chat_id, monthly_budget, daily_report_enabled, daily_report_hour, bill_reminder_days, card_reminder_days');
     if (profilesError) throw profilesError;
     if (!profiles || profiles.length === 0) return res.status(200).json({ ok: true, ...summary });
 
@@ -143,6 +143,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           link_tab: 'bills',
           dedupe_key: `bill:${t.id}:${dueDate}:${kind}`,
         });
+      }
+
+      // --- Alerta de teto de gastos mensal (80% e 100%) ---
+      const budget = Number(profile.monthly_budget || 0);
+      if (budget > 0) {
+        const budgetMonthStart = `${year}-${monthFormatted}-01`;
+        const { data: budgetTx } = await supabase
+          .from('transactions')
+          .select('amount')
+          .eq('user_id', profile.id)
+          .eq('type', 'expense')
+          .eq('is_invoice_payment', false)
+          .gte('transaction_date', budgetMonthStart)
+          .lte('transaction_date', today);
+
+        const spent = (budgetTx || []).reduce((sum, t) => sum + Number(t.amount), 0);
+        const percentage = Math.floor((spent / budget) * 100);
+        const threshold = percentage >= 100 ? 100 : percentage >= 80 ? 80 : 0;
+
+        if (threshold > 0) {
+          notifications.push({
+            user_id: profile.id,
+            type: 'budget_alert',
+            title: threshold === 100 ? '🚨 Teto de gastos estourado' : '⚠️ Teto de gastos em 80%',
+            body:
+              threshold === 100
+                ? `Você gastou R$ ${formatBRL(spent)} (${percentage}%) e passou do teto de R$ ${formatBRL(budget)} neste mês.`
+                : `Você já gastou R$ ${formatBRL(spent)} (${percentage}%) do teto de R$ ${formatBRL(budget)}. Restam R$ ${formatBRL(budget - spent)}.`,
+            link_tab: 'overview',
+            dedupe_key: `budget:${year}-${monthFormatted}:${threshold}`,
+          });
+        }
       }
 
       // --- Relatório diário ---

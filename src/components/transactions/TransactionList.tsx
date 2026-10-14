@@ -21,6 +21,7 @@ import {
   ChevronRight as ChevronIcon,
   Filter,
   Receipt,
+  Pencil,
 } from 'lucide-react';
 
 const MONTH_NAMES = [
@@ -39,6 +40,7 @@ export const TransactionList: React.FC = () => {
     filter,
     setFilter,
     createTransaction,
+    updateTransaction,
     togglePaidStatus,
     deleteTransaction,
   } = useTransactions();
@@ -47,6 +49,7 @@ export const TransactionList: React.FC = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTx, setSelectedTx] = useState<typeof transactions[0] | null>(null);
+  const [editingTx, setEditingTx] = useState<typeof transactions[0] | null>(null);
 
   const handlePrevMonth = () => {
     let newMonth = filter.month - 1;
@@ -438,6 +441,20 @@ export const TransactionList: React.FC = () => {
               </Button>
 
               <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setEditingTx(selectedTx);
+                  setSelectedTx(null);
+                  setIsModalOpen(true);
+                }}
+                className="text-xs px-3"
+                aria-label="Editar lançamento"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </Button>
+
+              <Button
                 variant="danger"
                 size="sm"
                 onClick={async () => {
@@ -458,8 +475,27 @@ export const TransactionList: React.FC = () => {
       {/* Modais de Criação e Importação */}
       <TransactionModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        initialValues={editingTx}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingTx(null);
+        }}
         onSubmit={async (formData) => {
+          if (editingTx) {
+            await updateTransaction(editingTx.id, {
+              description: formData.description,
+              amount: formData.amount,
+              type: formData.type,
+              payment_method: formData.payment_method,
+              transaction_date: formData.transaction_date,
+              account_id: formData.account_id ?? null,
+              credit_card_id: formData.credit_card_id ?? null,
+              category_id: formData.category_id ?? null,
+              is_paid: formData.is_paid,
+              notes: formData.notes ?? null,
+            });
+            return;
+          }
           await createTransaction(formData);
         }}
         categories={categories}

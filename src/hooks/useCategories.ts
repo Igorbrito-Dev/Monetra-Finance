@@ -21,6 +21,40 @@ export const DEFAULT_BRAZILIAN_CATEGORIES: Omit<Category, 'id' | 'user_id' | 'cr
   { name: 'Outras Entradas', type: 'income', color: '#64748B', icon: 'plus-circle', parent_id: null, is_active: true },
 ];
 
+const DEFAULT_CATEGORIES: { name: string; type: 'income' | 'expense'; color: string; icon: string }[] = [
+  { name: 'Alimentação', type: 'expense', color: '#F97316', icon: 'utensils' },
+  { name: 'Transporte', type: 'expense', color: '#3B82F6', icon: 'car' },
+  { name: 'Moradia', type: 'expense', color: '#8B5CF6', icon: 'home' },
+  { name: 'Saúde', type: 'expense', color: '#EF4444', icon: 'heart' },
+  { name: 'Lazer', type: 'expense', color: '#EC4899', icon: 'smile' },
+  { name: 'Educação', type: 'expense', color: '#0EA5E9', icon: 'book' },
+  { name: 'Compras', type: 'expense', color: '#F59E0B', icon: 'shopping-bag' },
+  { name: 'Assinaturas', type: 'expense', color: '#6366F1', icon: 'repeat' },
+  { name: 'Outros', type: 'expense', color: '#64748B', icon: 'tag' },
+  { name: 'Salário', type: 'income', color: '#10B981', icon: 'briefcase' },
+  { name: 'Freelance', type: 'income', color: '#14B8A6', icon: 'laptop' },
+  { name: 'Rendimentos', type: 'income', color: '#22C55E', icon: 'trending-up' },
+  { name: 'Outras receitas', type: 'income', color: '#84CC16', icon: 'tag' },
+];
+
+const seededKey = (userId: string) => `monetra:defaults-seeded:${userId}`;
+
+function hasSeededDefaults(userId: string): boolean {
+  try {
+    return localStorage.getItem(seededKey(userId)) === '1';
+  } catch {
+    return true; // sem armazenamento disponível: não semeia para evitar duplicar
+  }
+}
+
+function markSeededDefaults(userId: string): void {
+  try {
+    localStorage.setItem(seededKey(userId), '1');
+  } catch {
+    /* ignora */
+  }
+}
+
 export function useCategories() {
   const { user, isDemoMode } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
@@ -58,7 +92,22 @@ export function useCategories() {
         .order('name', { ascending: true });
 
       if (err) throw err;
-      setCategories((data as Category[]) || []);
+      let rows = (data as Category[]) || [];
+
+      // Primeiro acesso: cria um conjunto padrão (uma única vez por navegador) para a
+      // sugestão automática de categorias funcionar desde o início.
+      if (rows.length === 0 && !hasSeededDefaults(user.id)) {
+        markSeededDefaults(user.id);
+        const { data: seeded, error: seedError } = await supabase
+          .from('categories')
+          .insert(DEFAULT_CATEGORIES.map((c) => ({ ...c, user_id: user.id })))
+          .select();
+        if (!seedError && seeded) {
+          rows = (seeded as Category[]).sort((a, b) => a.name.localeCompare(b.name));
+        }
+      }
+
+      setCategories(rows);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erro ao buscar categorias';
       setError(message);

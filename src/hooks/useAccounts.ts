@@ -87,7 +87,26 @@ export function useAccounts() {
         .order('created_at', { ascending: false });
 
       if (err) throw err;
-      setAccounts((data as Account[]) || []);
+      const rows = (data as Account[]) || [];
+
+      // Saldo real calculado no banco (inicial + receitas pagas - despesas pagas).
+      // Se a view ainda não existir (migration pendente), mantém o saldo gravado na conta.
+      const { data: balanceRows, error: balanceError } = await supabase
+        .from('account_balances')
+        .select('account_id, balance')
+        .eq('user_id', user.id);
+
+      if (!balanceError && balanceRows) {
+        const balanceById = new Map(balanceRows.map((b) => [b.account_id, Number(b.balance)]));
+        setAccounts(
+          rows.map((acc) => ({
+            ...acc,
+            current_balance: balanceById.get(acc.id) ?? acc.current_balance,
+          }))
+        );
+      } else {
+        setAccounts(rows);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erro ao buscar contas';
       setError(message);

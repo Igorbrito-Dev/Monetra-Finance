@@ -8,6 +8,8 @@ const testFiles = [
   'tests/whisperParser.test.ts',
   'tests/creditCardRules.test.ts',
   'tests/billRules.test.ts',
+  'tests/accountBalance.test.ts',
+  'tests/cardUsage.test.ts',
 ];
 
 let failed = false;

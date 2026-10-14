@@ -11,7 +11,13 @@ export type TransactionType = 'income' | 'expense' | 'transfer';
 export type PaymentMethod = 'pix' | 'credit' | 'debit' | 'cash' | 'transfer' | 'boleto' | 'other';
 export type SourceFileType = 'csv' | 'ofx' | 'xlsx' | 'other';
 export type AgentChannel = 'telegram' | 'web';
-export type NotificationType = 'bill_due' | 'bill_today' | 'bill_overdue' | 'card_invoice' | 'daily_report';
+export type NotificationType =
+  | 'bill_due'
+  | 'bill_today'
+  | 'bill_overdue'
+  | 'card_invoice'
+  | 'daily_report'
+  | 'budget_alert';
 
 export type Database = {
   public: {
@@ -458,7 +464,17 @@ export type Database = {
         Relationships: [];
       };
     };
-    Views: Record<string, never>;
+    Views: {
+      account_balances: {
+        Row: {
+          account_id: string;
+          user_id: string;
+          initial_balance: number;
+          balance: number;
+        };
+        Relationships: [];
+      };
+    };
     Functions: Record<string, never>;
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

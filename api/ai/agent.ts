@@ -416,10 +416,21 @@ export function createFinanceTools(userId: string, supabase: SupabaseClient<Data
   const consultarSaldoTool = tool(
     async () => {
       try {
-        const { data: accounts, error } = await supabase
+        const { data: baseAccounts, error } = await supabase
           .from('accounts')
-          .select('name, current_balance, type')
+          .select('id, name, current_balance, type')
           .eq('user_id', userId);
+
+        // Saldo real calculado (view account_balances); cai para o saldo gravado se a view não existir.
+        const { data: balanceRows } = await supabase
+          .from('account_balances')
+          .select('account_id, balance')
+          .eq('user_id', userId);
+        const balanceById = new Map((balanceRows || []).map((b) => [b.account_id, Number(b.balance)]));
+        const accounts = (baseAccounts || []).map((a) => ({
+          ...a,
+          current_balance: balanceById.get(a.id) ?? a.current_balance,
+        }));
 
         if (error) return `⚠️ Erro ao consultar contas: ${error.message}`;
         if (!accounts || accounts.length === 0) {

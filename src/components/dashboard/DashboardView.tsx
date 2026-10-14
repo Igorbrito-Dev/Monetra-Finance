@@ -3,9 +3,7 @@ import { useTransactions } from '../../hooks/useTransactions';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useCategories } from '../../hooks/useCategories';
 import { useCreditCards } from '../../hooks/useCreditCards';
-import {
-  getUpcomingCommitments,
-} from '../../lib/dashboardMetrics';
+import { useUpcomingCommitments } from '../../hooks/useUpcomingCommitments';
 import { calculateMonthSummary } from '../../lib/financeRules';
 import { formatCurrency } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
@@ -69,10 +67,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateToTab, o
   // Resumo financeiro do mês selecionado
   const summary = calculateMonthSummary(transactions);
 
-  // Próximos compromissos
-  const lastDayOfMonth = new Date(filter.year, filter.month, 0).getDate();
-  const referenceDate = `${filter.year}-${String(filter.month).padStart(2, '0')}-${String(lastDayOfMonth).padStart(2, '0')}`;
-  const upcoming = getUpcomingCommitments(transactions, referenceDate);
+  // Próximos compromissos (parcelas e contas com data futura, independente do mês exibido)
+  const { commitments: upcoming } = useUpcomingCommitments();
 
   // Saudação contextual
   const currentHour = new Date().getHours();

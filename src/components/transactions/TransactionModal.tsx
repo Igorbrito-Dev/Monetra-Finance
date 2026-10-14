@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from '../ui/Button';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useCreditCards } from '../../hooks/useCreditCards';
 import { useCategories } from '../../hooks/useCategories';
-import type { TransactionType, PaymentMethod, Category, Account, CreditCard } from '../../types/database';
+import type { TransactionType, PaymentMethod, Category, Account, CreditCard, Transaction } from '../../types/database';
 import { getInvoiceForPurchase, formatIsoDateBR } from '../../lib/creditCardRules';
 import { X, Layers, ShieldCheck, CalendarClock } from 'lucide-react';
 
@@ -29,6 +29,8 @@ interface TransactionModalProps {
   categories?: Category[];
   accounts?: Account[];
   cards?: CreditCard[];
+  /** Quando informado, o modal abre em modo de edição deste lançamento */
+  initialValues?: Transaction | null;
 }
 
 export const TransactionModal: React.FC<TransactionModalProps> = ({
@@ -38,6 +40,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   categories: propCategories,
   accounts: propAccounts,
   cards: propCards,
+  initialValues,
 }) => {
   const hookAccounts = useAccounts();
   const hookCards = useCreditCards();
@@ -61,6 +64,25 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [installmentsCount, setInstallmentsCount] = useState(2);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const isEditing = Boolean(initialValues);
+
+  // Preenche o formulário ao abrir em modo de edição
+  useEffect(() => {
+    if (!isOpen || !initialValues) return;
+    setType(initialValues.type === 'income' ? 'income' : 'expense');
+    setDescription(initialValues.description);
+    setAmount(String(initialValues.amount).replace('.', ','));
+    setDate(initialValues.transaction_date);
+    setPaymentMethod(initialValues.payment_method);
+    setAccountId(initialValues.account_id ?? '');
+    setCardId(initialValues.credit_card_id ?? '');
+    setCategoryId(initialValues.category_id ?? '');
+    setIsPaid(initialValues.is_paid);
+    setIsInvoicePayment(initialValues.is_invoice_payment);
+    setIsInstallment(false);
+    setNotes(initialValues.notes ?? '');
+  }, [isOpen, initialValues]);
 
   if (!isOpen) return null;
 
@@ -118,7 +140,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
-        <h3 className="text-lg font-bold text-slate-900 mb-4">Novo Lançamento</h3>
+        <h3 className="text-lg font-bold text-slate-900 mb-4">
+          {isEditing ? 'Editar Lançamento' : 'Novo Lançamento'}
+        </h3>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Tipo de Transação */}
@@ -236,6 +260,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                   if (val !== 'credit') {
                     setIsInstallment(false);
                   }
+                  if (!isEditing) {
+                    // Compra no crédito só é quitada quando a fatura é paga
+                    setIsPaid(val !== 'credit');
+                  }
                 }}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs sm:text-sm focus:outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
               >
@@ -322,7 +350,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           )}
 
           {/* Parcelamento de Cartão de Crédito */}
-          {paymentMethod === 'credit' && (
+          {paymentMethod === 'credit' && !isEditing && (
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
               <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
                 <input
@@ -405,7 +433,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               className="flex-1 text-xs font-bold"
               isLoading={loading}
             >
-              Gravar Lançamento
+              {isEditing ? 'Salvar alterações' : 'Gravar Lançamento'}
             </Button>
           </div>
         </form>

@@ -345,6 +345,40 @@ export function useTransactions(initialFilter?: Partial<TransactionFilter>) {
     return { error: err };
   };
 
+  const updateTransaction = async (
+    id: string,
+    patch: {
+      description?: string;
+      amount?: number;
+      type?: TransactionType;
+      payment_method?: PaymentMethod;
+      transaction_date?: string;
+      due_date?: string | null;
+      account_id?: string | null;
+      credit_card_id?: string | null;
+      category_id?: string | null;
+      is_paid?: boolean;
+      notes?: string | null;
+    }
+  ) => {
+    if (isDemoMode) {
+      setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+      return { error: null };
+    }
+
+    const { data, error: err } = await supabase
+      .from('transactions')
+      .update(patch)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (!err && data) {
+      setTransactions((prev) => prev.map((t) => (t.id === id ? (data as Transaction) : t)));
+    }
+    return { error: err };
+  };
+
   const deleteTransaction = async (id: string, deleteGroup = false) => {
     const target = transactions.find((t) => t.id === id);
 
@@ -389,6 +423,7 @@ export function useTransactions(initialFilter?: Partial<TransactionFilter>) {
     refetch: fetchTransactions,
     createTransaction,
     togglePaidStatus,
+    updateTransaction,
     deleteTransaction,
   };
 }
