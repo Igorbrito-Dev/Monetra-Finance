@@ -1,17 +1,17 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../../src/types/database';
-import { runFinanceAgent } from '../ai/agent';
+import { runFinanceAgent } from '../ai/agent.js';
 import {
   isUpdateAlreadyProcessed,
   resolveUserIdByChatId,
   linkTelegramAccount,
   extractLinkToken,
-} from './auth';
+} from './auth.js';
 import {
   downloadTelegramVoiceBuffer,
   transcribeAudioWithWhisper,
-} from '../ai/whisper';
+} from '../ai/whisper.js';
 
 async function sendTelegramMessage(botToken: string, chatId: number, text: string) {
   try {
