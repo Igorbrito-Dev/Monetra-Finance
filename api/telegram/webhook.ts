@@ -118,10 +118,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true });
   }
 
-  // Se foi mensagem de áudio, envia um feedback visual da transcrição
-  if (isVoice) {
-    await sendTelegramMessage(botToken, chatId, `🎙️ <i>"${text}"</i>`);
-  }
 
   // 6. Orquestração do Agente LangChain com OpenAI
   try {

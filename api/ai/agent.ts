@@ -4,14 +4,61 @@ import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../src/types/database';
 
+/**
+ * Retorna componentes de data e hora rigorosamente calculados no fuso horário oficial de Brasília (America/Sao_Paulo).
+ * Garante que lançamentos e consultas coincidam com o dia civil do usuário no Brasil,
+ * independente da localização dos servidores da Vercel (geralmente UTC).
+ */
+export function getBrasiliaDateParts() {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(now);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value || '';
+
+  const year = parseInt(get('year'), 10);
+  const month = parseInt(get('month'), 10);
+  const day = parseInt(get('day'), 10);
+  const monthFormatted = get('month');
+  const dayFormatted = get('day');
+  const timeStr = `${get('hour')}:${get('minute')}`;
+  const dateStr = `${year}-${monthFormatted}-${dayFormatted}`;
+  const formattedDate = `${dayFormatted}/${monthFormatted}/${year}`;
+
+  return { dateStr, formattedDate, timeStr, year, month, day, monthFormatted };
+}
+
+function formatBRL(value: number): string {
+  return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+const paymentMethodLabels: Record<string, string> = {
+  pix: 'PIX',
+  credit: 'Cartão de Crédito',
+  debit: 'Cartão de Débito',
+  cash: 'Dinheiro',
+  transfer: 'Transferência Bancária',
+  boleto: 'Boleto',
+  other: 'Outro',
+};
+
 export function createFinanceTools(userId: string, supabase: SupabaseClient<Database>) {
   /**
    * Tool: Criar Transação Financeira
    */
   const criarTransacaoTool = tool(
-    async ({ descricao, valor, tipo, formaPagamento, dataTransacao, categoriaNome }) => {
+    async ({ descricao, valor, tipo, formaPagamento, dataTransacao, categoriaNome, contaNome, cartaoNome }) => {
       try {
         let categoryId: string | null = null;
+        let categoryDisplayName: string | null = null;
 
         // Se uma categoria foi sugerida, busca ou infere a categoria existente do usuário
         if (categoriaNome) {
@@ -24,39 +71,60 @@ export function createFinanceTools(userId: string, supabase: SupabaseClient<Data
 
           if (userCategories && userCategories.length > 0) {
             categoryId = userCategories[0].id;
+            categoryDisplayName = userCategories[0].name;
+          } else {
+            categoryDisplayName = categoriaNome;
           }
         }
 
-        // Se forma de pagamento for débito ou pix, busca uma conta principal
         let accountId: string | null = null;
         let creditCardId: string | null = null;
+        let accountOrCardDisplayName: string | null = null;
 
         if (formaPagamento === 'credit') {
-          const { data: userCards } = await supabase
-            .from('credit_cards')
-            .select('id, name')
-            .eq('user_id', userId)
-            .limit(1);
+          // Busca cartão informado ou o primeiro do usuário
+          let query = supabase.from('credit_cards').select('id, name').eq('user_id', userId);
+          if (cartaoNome) {
+            query = query.ilike('name', `%${cartaoNome}%`);
+          }
+          const { data: userCards } = await query.limit(1);
 
           if (userCards && userCards.length > 0) {
             creditCardId = userCards[0].id;
+            accountOrCardDisplayName = userCards[0].name;
+          } else if (cartaoNome) {
+            // Tenta qualquer cartão se o filtro específico não bateu
+            const { data: anyCard } = await supabase.from('credit_cards').select('id, name').eq('user_id', userId).limit(1);
+            if (anyCard && anyCard.length > 0) {
+              creditCardId = anyCard[0].id;
+              accountOrCardDisplayName = anyCard[0].name;
+            }
           }
         } else {
-          const { data: userAccounts } = await supabase
-            .from('accounts')
-            .select('id, name')
-            .eq('user_id', userId)
-            .limit(1);
+          // Busca conta informada ou a principal do usuário
+          let query = supabase.from('accounts').select('id, name').eq('user_id', userId);
+          if (contaNome) {
+            query = query.ilike('name', `%${contaNome}%`);
+          }
+          const { data: userAccounts } = await query.limit(1);
 
           if (userAccounts && userAccounts.length > 0) {
             accountId = userAccounts[0].id;
+            accountOrCardDisplayName = userAccounts[0].name;
+          } else if (contaNome) {
+            // Tenta primeira conta cadastrada
+            const { data: anyAccount } = await supabase.from('accounts').select('id, name').eq('user_id', userId).limit(1);
+            if (anyAccount && anyAccount.length > 0) {
+              accountId = anyAccount[0].id;
+              accountOrCardDisplayName = anyAccount[0].name;
+            }
           }
         }
 
-        const today = new Date().toISOString().split('T')[0];
-        const dateToUse = dataTransacao || today;
+        const { dateStr: brasiliaDateStr, timeStr: brasiliaTimeStr } = getBrasiliaDateParts();
+        const dateToUse = dataTransacao || brasiliaDateStr;
 
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('transactions')
           .insert({
             user_id: userId,
@@ -75,25 +143,37 @@ export function createFinanceTools(userId: string, supabase: SupabaseClient<Data
           .single();
 
         if (error) {
-          return `Erro ao salvar lançamento no banco: ${error.message}`;
+          return `⚠️ <b>Erro ao salvar lançamento no banco:</b> ${error.message}`;
         }
 
-        return `✅ ${tipo === 'income' ? 'Receita' : 'Despesa'} registrada com sucesso!\n• Descrição: ${descricao}\n• Valor: R$ ${valor.toFixed(2)}\n• Forma: ${formaPagamento.toUpperCase()}\n• Data: ${dateToUse}`;
+        const formaLabel = paymentMethodLabels[formaPagamento] || formaPagamento.toUpperCase();
+        const [ano, mes, dia] = dateToUse.split('-');
+        const dataExibicao = dia && mes && ano ? `${dia}/${mes}/${ano}` : dateToUse;
+
+        return `✅ <b>${tipo === 'income' ? 'Receita' : 'Despesa'} registrada com sucesso!</b>\n\n` +
+          `${tipo === 'income' ? '💰' : '💸'} <b>Valor:</b> <code>R$ ${formatBRL(valor)}</code>\n` +
+          `📝 <b>Descrição:</b> ${descricao}\n` +
+          (categoryDisplayName ? `🏷️ <b>Categoria:</b> ${categoryDisplayName}\n` : '') +
+          (accountOrCardDisplayName ? `${formaPagamento === 'credit' ? '💳' : '🏦'} <b>${formaPagamento === 'credit' ? 'Cartão' : 'Conta'}:</b> ${accountOrCardDisplayName}\n` : '') +
+          `🔄 <b>Forma de Pagamento:</b> ${formaLabel}\n` +
+          `📅 <b>Data:</b> ${dataExibicao} às ${brasiliaTimeStr} <i>(Horário de Brasília)</i>`;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Erro desconhecido';
-        return `Falha na operação: ${msg}`;
+        return `⚠️ <b>Falha na operação:</b> ${msg}`;
       }
     },
     {
       name: 'criar_transacao',
-      description: 'Registra uma nova receita ou despesa financeira para o usuário no banco de dados.',
+      description: 'Registra uma nova receita ou despesa financeira para o usuário no banco de dados. SÓ deve ser chamada quando a forma de pagamento for conhecida.',
       schema: z.object({
         descricao: z.string().describe('Descrição clara do lançamento (ex: Almoço no restaurante, Abastecimento, Freela)'),
         valor: z.number().positive().describe('Valor numérico da transação em reais (ex: 45.50, 120.00)'),
         tipo: z.enum(['income', 'expense']).describe('Tipo da movimentação: expense para despesa/gasto, income para receita/ganho'),
         formaPagamento: z.enum(['pix', 'credit', 'debit', 'cash', 'transfer', 'boleto', 'other']).describe('Forma de pagamento utilizada'),
-        dataTransacao: z.string().optional().describe('Data da transação no formato YYYY-MM-DD. Se não informado, usar a data de hoje'),
+        dataTransacao: z.string().optional().describe('Data da transação no formato YYYY-MM-DD. Se não informado, utilizar a data atual de Brasília'),
         categoriaNome: z.string().optional().describe('Nome ou sugestão de categoria (ex: Alimentação, Transporte, Lazer, Salário)'),
+        contaNome: z.string().optional().describe('Nome da conta bancária de origem/destino (ex: Nubank, Itaú, Carteira)'),
+        cartaoNome: z.string().optional().describe('Nome do cartão de crédito utilizado, caso seja pagamento em crédito'),
       }),
     }
   );
@@ -109,18 +189,23 @@ export function createFinanceTools(userId: string, supabase: SupabaseClient<Data
           .select('name, current_balance, type')
           .eq('user_id', userId);
 
-        if (error) return `Erro ao consultar contas: ${error.message}`;
-        if (!accounts || accounts.length === 0) return 'Você ainda não possui contas bancárias cadastradas.';
+        if (error) return `⚠️ Erro ao consultar contas: ${error.message}`;
+        if (!accounts || accounts.length === 0) {
+          return 'ℹ️ <b>Você ainda não possui contas bancárias cadastradas.</b>\nAcesse a aba <b>Contas</b> no painel web para adicionar.';
+        }
 
         const total = accounts.reduce((acc, curr) => acc + Number(curr.current_balance || 0), 0);
         const details = accounts
-          .map((a) => `• ${a.name}: R$ ${Number(a.current_balance).toFixed(2)}`)
+          .map((a) => `• 🏦 <b>${a.name}:</b> <code>R$ ${formatBRL(Number(a.current_balance))}</code>`)
           .join('\n');
 
-        return `💰 Saldo Consolidado: R$ ${total.toFixed(2)}\n\nDetalhamento por conta:\n${details}`;
+        return `💰 <b>Saldo Consolidado</b>\n\n` +
+          `<b>Detalhamento por Conta:</b>\n${details}\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━━\n` +
+          `💵 <b>Total Geral em Contas:</b> <code>R$ ${formatBRL(total)}</code>`;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Erro';
-        return `Erro ao consultar saldo: ${msg}`;
+        return `⚠️ Erro ao consultar saldo: ${msg}`;
       }
     },
     {
@@ -136,11 +221,9 @@ export function createFinanceTools(userId: string, supabase: SupabaseClient<Data
   const consultarGastosMesTool = tool(
     async () => {
       try {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const { year, monthFormatted: month } = getBrasiliaDateParts();
         const startDate = `${year}-${month}-01`;
-        const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+        const lastDay = new Date(year, parseInt(month, 10), 0).getDate();
         const endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
 
         const { data: transactions, error } = await supabase
@@ -150,7 +233,7 @@ export function createFinanceTools(userId: string, supabase: SupabaseClient<Data
           .gte('transaction_date', startDate)
           .lte('transaction_date', endDate);
 
-        if (error) return `Erro ao buscar transações: ${error.message}`;
+        if (error) return `⚠️ Erro ao buscar transações: ${error.message}`;
 
         let totalExpense = 0;
         let totalIncome = 0;
@@ -163,15 +246,23 @@ export function createFinanceTools(userId: string, supabase: SupabaseClient<Data
           }
         }
 
-        return `📊 Resumo do Mês (${month}/${year}):\n• Total de Despesas de Consumo: R$ ${totalExpense.toFixed(2)}\n• Total de Receitas: R$ ${totalIncome.toFixed(2)}\n• Balanço Atual: R$ ${(totalIncome - totalExpense).toFixed(2)}`;
+        const balance = totalIncome - totalExpense;
+        const nomeMes = new Intl.DateTimeFormat('pt-BR', { month: 'long', timeZone: 'America/Sao_Paulo' }).format(new Date());
+        const nomeMesCapitalized = nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1);
+
+        return `📊 <b>Resumo Financeiro — ${nomeMesCapitalized} de ${year}</b>\n\n` +
+          `💸 <b>Despesas de Consumo:</b> <code>R$ ${formatBRL(totalExpense)}</code>\n` +
+          `💰 <b>Receitas Recebidas:</b> <code>R$ ${formatBRL(totalIncome)}</code>\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━━\n` +
+          `${balance >= 0 ? '🟢' : '🔴'} <b>Balanço do Mês:</b> <code>R$ ${formatBRL(balance)}</code>`;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Erro';
-        return `Erro ao buscar resumo: ${msg}`;
+        return `⚠️ Erro ao buscar resumo: ${msg}`;
       }
     },
     {
       name: 'consultar_gastos_mes',
-      description: 'Consulta o total de despesas e receitas do mês atual do usuário.',
+      description: 'Consulta o total de despesas e receitas do mês atual do usuário no horário de Brasília.',
       schema: z.object({}),
     }
   );
@@ -190,11 +281,9 @@ export function createFinanceTools(userId: string, supabase: SupabaseClient<Data
 
         const limit = Number(profile?.monthly_budget || 0);
 
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const { year, monthFormatted: month } = getBrasiliaDateParts();
         const startDate = `${year}-${month}-01`;
-        const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+        const lastDay = new Date(year, parseInt(month, 10), 0).getDate();
         const endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
 
         const { data: txs } = await supabase
@@ -212,7 +301,9 @@ export function createFinanceTools(userId: string, supabase: SupabaseClient<Data
         }
 
         if (!limit || limit <= 0) {
-          return `📊 Gastos acumulados neste mês: R$ ${totalExpense.toFixed(2)}.\n\n💡 Você ainda não configurou um limite de gastos mensal. Diga "Definir meu limite em R$ 3.000" para ativar alertas de controle.`;
+          return `📊 <b>Gastos acumulados neste mês:</b> <code>R$ ${formatBRL(totalExpense)}</code>\n\n` +
+            `💡 <i>Você ainda não configurou um teto de gastos mensal.</i>\n` +
+            `Diga por exemplo <i>"Definir meu limite em R$ 3.000"</i> para ativar alertas automáticos.`;
         }
 
         const percentage = Math.round((totalExpense / limit) * 100);
@@ -220,17 +311,21 @@ export function createFinanceTools(userId: string, supabase: SupabaseClient<Data
 
         let alertMsg = '';
         if (percentage >= 100) {
-          alertMsg = `\n\n🚨 <b>ALERTA DE ORÇAMENTO:</b> Você já atingiu <b>${percentage}%</b> do seu limite e estourou seu teto em R$ ${(totalExpense - limit).toFixed(2)}! Tenha cuidado com novos gastos.`;
+          alertMsg = `\n\n🚨 <b>ALERTA DE TETO ESTOURADO:</b> Você atingiu <b>${percentage}%</b> do limite e ultrapassou o teto em <code>R$ ${formatBRL(totalExpense - limit)}</code>!`;
         } else if (percentage >= 80) {
-          alertMsg = `\n\n⚠️ <b>ATENÇÃO:</b> Você já consumiu <b>${percentage}%</b> do seu teto mensal de gastos! Restam apenas R$ ${remaining.toFixed(2)}. Tenha cuidado com gastos desnecessários.`;
+          alertMsg = `\n\n⚠️ <b>ATENÇÃO AO ORÇAMENTO:</b> Você já consumiu <b>${percentage}%</b> do seu teto mensal! Restam apenas <code>R$ ${formatBRL(remaining)}</code> disponíveis.`;
         } else {
-          alertMsg = `\n\n✅ Orçamento sob controle (${percentage}% consumido).`;
+          alertMsg = `\n\n✅ <b>Orçamento sob controle:</b> ${percentage}% do teto consumido.`;
         }
 
-        return `🎯 <b>Limite & Orçamento Mensal:</b>\n• Teto Estipulado: R$ ${limit.toFixed(2)}\n• Gasto Acumulado: R$ ${totalExpense.toFixed(2)}\n• Limite Restante Disponível: R$ ${remaining.toFixed(2)}${alertMsg}`;
+        return `🎯 <b>Controle de Teto & Limite Mensal</b>\n\n` +
+          `📌 <b>Teto Estipulado:</b> <code>R$ ${formatBRL(limit)}</code>\n` +
+          `💸 <b>Gasto Acumulado:</b> <code>R$ ${formatBRL(totalExpense)}</code> (<b>${percentage}%</b>)\n` +
+          `🛡️ <b>Limite Restante:</b> <code>R$ ${formatBRL(remaining)}</code>\n` +
+          `━━━━━━━━━━━━━━━━━━━━━${alertMsg}`;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Erro';
-        return `Erro ao consultar limite: ${msg}`;
+        return `⚠️ Erro ao consultar limite: ${msg}`;
       }
     },
     {
@@ -251,12 +346,14 @@ export function createFinanceTools(userId: string, supabase: SupabaseClient<Data
           .update({ monthly_budget: novoLimite })
           .eq('id', userId);
 
-        if (error) return `Erro ao configurar teto: ${error.message}`;
+        if (error) return `⚠️ Erro ao configurar teto: ${error.message}`;
 
-        return `🎯 Teto de gastos mensal definido para <b>R$ ${novoLimite.toFixed(2)}</b> com sucesso! O sistema avisará quando você se aproximar desse valor.`;
+        return `🎯 <b>Novo Teto Mensal Configurado!</b>\n\n` +
+          `📌 <b>Limite Definido:</b> <code>R$ ${formatBRL(novoLimite)}</code>\n\n` +
+          `<i>Você receberá alertas automáticos sempre que atingir ou ultrapassar 80% deste valor ao longo do mês.</i>`;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Erro';
-        return `Erro ao definir limite: ${msg}`;
+        return `⚠️ Erro ao definir limite: ${msg}`;
       }
     },
     {
@@ -274,32 +371,40 @@ export function createFinanceTools(userId: string, supabase: SupabaseClient<Data
   const consultarFaturasCompromissosTool = tool(
     async ({ periodo }) => {
       try {
-        const now = new Date();
-        const todayStr = now.toISOString().split('T')[0];
+        const { dateStr: brasiliaTodayStr, year: currentYear, month: currentMonth } = getBrasiliaDateParts();
 
         if (periodo === 'hoje') {
           const { data: txs, error } = await supabase
             .from('transactions')
             .select('description, amount, type')
             .eq('user_id', userId)
-            .eq('transaction_date', todayStr);
+            .eq('transaction_date', brasiliaTodayStr);
 
-          if (error) return `Erro ao buscar gastos de hoje: ${error.message}`;
-          if (!txs || txs.length === 0) return 'Você não possui nenhum lançamento registrado hoje.';
+          if (error) return `⚠️ Erro ao buscar gastos de hoje: ${error.message}`;
+          if (!txs || txs.length === 0) {
+            const [ano, mes, dia] = brasiliaTodayStr.split('-');
+            return `📅 <b>Lançamentos de Hoje (${dia}/${mes}/${ano}):</b>\n\n<i>Você ainda não registrou nenhum gasto ou receita hoje.</i>`;
+          }
 
           let sumExpenses = 0;
           let sumIncomes = 0;
           const items = txs.map((t) => {
-            if (t.type === 'expense') sumExpenses += Number(t.amount);
-            else sumIncomes += Number(t.amount);
-            return `• ${t.description}: R$ ${Number(t.amount).toFixed(2)}`;
+            if (t.type === 'expense') {
+              sumExpenses += Number(t.amount);
+              return `• 💸 <b>${t.description}:</b> <code>R$ ${formatBRL(Number(t.amount))}</code>`;
+            } else {
+              sumIncomes += Number(t.amount);
+              return `• 💰 <b>${t.description}:</b> <code>R$ ${formatBRL(Number(t.amount))}</code>`;
+            }
           }).join('\n');
 
-          return `📅 <b>Lançamentos de Hoje (${todayStr}):</b>\n${items}\n\nTotal de despesas hoje: R$ ${sumExpenses.toFixed(2)}\nTotal de receitas hoje: R$ ${sumIncomes.toFixed(2)}`;
+          const [ano, mes, dia] = brasiliaTodayStr.split('-');
+          return `📅 <b>Lançamentos de Hoje (${dia}/${mes}/${ano} — Brasília):</b>\n\n` +
+            `${items}\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `💸 <b>Total Despesas Hoje:</b> <code>R$ ${formatBRL(sumExpenses)}</code>\n` +
+            `💰 <b>Total Receitas Hoje:</b> <code>R$ ${formatBRL(sumIncomes)}</code>`;
         }
-
-        const currentYear = now.getFullYear();
-        const currentMonth = now.getMonth() + 1;
 
         let targetYear = currentYear;
         let targetMonth = currentMonth;
@@ -323,7 +428,7 @@ export function createFinanceTools(userId: string, supabase: SupabaseClient<Data
           .gte('transaction_date', startMonthStr)
           .lte('transaction_date', endMonthStr);
 
-        if (error) return `Erro ao consultar compromissos: ${error.message}`;
+        if (error) return `⚠️ Erro ao consultar compromissos: ${error.message}`;
 
         let cardExpenses = 0;
         let otherExpenses = 0;
@@ -334,21 +439,27 @@ export function createFinanceTools(userId: string, supabase: SupabaseClient<Data
             const val = Number(t.amount);
             if (t.payment_method === 'credit' || t.credit_card_id) {
               cardExpenses += val;
-              const inst = t.installment_number && t.total_installments ? ` (${t.installment_number}/${t.total_installments}x)` : '';
-              details.push(`• 💳 ${t.description}${inst}: R$ ${val.toFixed(2)}`);
+              const inst = t.installment_number && t.total_installments ? ` <i>(${t.installment_number}/${t.total_installments}x)</i>` : '';
+              details.push(`• 💳 <b>${t.description}</b>${inst}: <code>R$ ${formatBRL(val)}</code>`);
             } else {
               otherExpenses += val;
-              details.push(`• 📄 ${t.description}: R$ ${val.toFixed(2)}`);
+              details.push(`• 📄 <b>${t.description}:</b> <code>R$ ${formatBRL(val)}</code>`);
             }
           }
         }
 
         const monthName = new Date(targetYear, targetMonth - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        const monthNameCap = monthName.charAt(0).toUpperCase() + monthName.slice(1);
 
-        return `💳 <b>Fatura & Compromissos de ${monthName}:</b>\n• Total da Fatura de Cartão: R$ ${cardExpenses.toFixed(2)}\n• Outras Despesas Previstas: R$ ${otherExpenses.toFixed(2)}\n• <b>Total Geral: R$ ${(cardExpenses + otherExpenses).toFixed(2)}</b>\n\n${details.length > 0 ? 'Detalhamento:\n' + details.slice(0, 8).join('\n') : 'Nenhuma parcela ou despesa futura registrada para este período.'}`;
+        return `💳 <b>Fatura & Compromissos de ${monthNameCap}</b>\n\n` +
+          `💳 <b>Fatura de Cartões:</b> <code>R$ ${formatBRL(cardExpenses)}</code>\n` +
+          `📄 <b>Outras Despesas Previstas:</b> <code>R$ ${formatBRL(otherExpenses)}</code>\n` +
+          `━━━━━━━━━━━━━━━━━━━━━\n` +
+          `💵 <b>Total Estimado:</b> <code>R$ ${formatBRL(cardExpenses + otherExpenses)}</code>\n\n` +
+          `${details.length > 0 ? '<b>Detalhamento de Lançamentos:</b>\n' + details.slice(0, 10).join('\n') : '<i>Nenhuma parcela ou despesa futura registrada para este período.</i>'}`;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Erro';
-        return `Erro ao consultar faturas: ${msg}`;
+        return `⚠️ Erro ao consultar faturas: ${msg}`;
       }
     },
     {
@@ -381,7 +492,7 @@ export async function runFinanceAgent(
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
-    return '⚠️ OPENAI_API_KEY não configurada no ambiente da Vercel. Por favor, adicione sua chave nas variáveis de ambiente.';
+    return '⚠️ <b>OPENAI_API_KEY</b> não configurada no ambiente da Vercel. Por favor, adicione sua chave nas variáveis de ambiente.';
   }
 
   const model = new ChatOpenAI({
@@ -393,17 +504,66 @@ export async function runFinanceAgent(
   const tools = createFinanceTools(userId, supabase);
   const modelWithTools = model.bindTools(tools);
 
+  // Busca contas e cartões do usuário para enriquecer o contexto de diálogo do assistente
+  const { data: userAccounts } = await supabase
+    .from('accounts')
+    .select('name, type')
+    .eq('user_id', userId);
+
+  const { data: userCards } = await supabase
+    .from('credit_cards')
+    .select('name')
+    .eq('user_id', userId);
+
+  const accountsList = (userAccounts || []).map((a) => a.name).join(', ') || 'Nenhuma conta cadastrada';
+  const cardsList = (userCards || []).map((c) => c.name).join(', ') || 'Nenhum cartão cadastrado';
+  const { formattedDate: hojeBrasilia, timeStr: horaBrasilia, dateStr: dataIsoBrasilia } = getBrasiliaDateParts();
+
   const systemPrompt = `Você é o Monetra Assistant, o assistente inteligente de gestão financeira pessoal do usuário.
-Suas diretrizes:
-1. Responda SEMPRE em Português do Brasil de forma amigável, concisa e direta.
-2. Quando o usuário disser que gastou, comprou ou recebeu algo (ex: "gastei 35 de combustível no pix", "comprei uma pizza"), execute imediatamente a ferramenta 'criar_transacao' com os parâmetros corretos.
-3. Se o usuário perguntar o saldo geral, use a ferramenta 'consultar_saldo'.
-4. Se o usuário perguntar os gastos do mês, use 'consultar_gastos_mes'.
-5. Se o usuário perguntar quanto ainda pode gastar, qual é o seu limite, ou quanto já comprometeu do teto, use 'consultar_limite_gastos'.
-6. Se o usuário pedir para definir, alterar ou ajustar seu limite/teto mensal de gastos (ex: "defina meu limite em 2500"), use 'definir_limite_gastos'.
-7. Se o usuário perguntar sobre gastos de hoje, da fatura deste mês, da fatura do mês que vem ou compromissos futuros, use 'consultar_faturas_compromissos'.
-8. Se faltar informação em um lançamento, utilize valores padrão razoáveis (ex: data de hoje, forma de pagamento pix ou débito se não especificado) e confirme o que foi gravado.
-9. Nunca exponha chaves secretas ou IDs técnicos de banco.`;
+Você se comunica pelo Telegram e suas respostas devem ser extremamente bem diagramadas, organizadas e agradáveis de ler.
+
+📅 Data e Hora Atual de Brasília: ${hojeBrasilia} às ${horaBrasilia} (Data ISO: ${dataIsoBrasilia}).
+🏦 Contas cadastradas do usuário: ${accountsList}
+💳 Cartões de crédito cadastrados: ${cardsList}
+
+DIRETRIZES DE FORMATAÇÃO E COMPORTAMENTO (OBRIGATÓRIAS):
+1. Responda SEMPRE em Português do Brasil com formatação HTML nativa do Telegram.
+   - Use <b>negrito</b> para títulos, rótulos e termos importantes.
+   - Use <code>R$ 0,00</code> para valores numéricos e dinheiro.
+   - Use emojis pertinentes (💸, 💰, 💳, 🏦, 📅, 📊, 🎯, 🏷️, 🚨).
+   - NUNCA envie textos amontoados em um único bloco. Use quebras de linha duplas para espaçamento limpo e elegante.
+
+2. REGRA MANDATÓRIA PARA REGISTRO DE TRANSAÇÕES (DESPESAS E RECEITAS):
+   - Para registrar uma despesa ou receita, são estritamente necessários: (1) Descrição, (2) Valor e (3) Forma de pagamento (ex: PIX, Cartão de Crédito, Débito, Dinheiro) e/ou a Conta/Cartão utilizada.
+   - SE O USUÁRIO DISSER QUE GASTOU OU RECEBEU ALGO, MAS NÃO INFORMAR A FORMA DE PAGAMENTO OU CONTA:
+     • NÃO invente nem deduza a forma de pagamento!
+     • NÃO chame a ferramenta 'criar_transacao' ainda.
+     • Responda educadamente perguntando qual foi a forma de pagamento e qual conta/cartão foi utilizado.
+     • Exemplo de resposta para despesa sem forma de pagamento:
+       "Entendido! Para registrar essa despesa de <code>R$ 45,00</code> no <b>Mercado</b>:\n\n💳 <b>Como você realizou esse pagamento?</b>\n(Ex: PIX, Cartão de Crédito, Débito ou Dinheiro? Se foi em uma conta ou cartão específico, me informe qual!)"
+     • Exemplo de resposta para receita sem conta:
+       "Excelente entrada! Para registrar esse ganho de <code>R$ 200,00</code>:\n\n🏦 <b>Em qual conta ou forma você recebeu esse valor?</b>\n(Ex: PIX no Nubank, Transferência, etc.)"
+
+3. SE O USUÁRIO INFORMAR A FORMA DE PAGAMENTO (ou se já tiver informado tudo na mensagem, ex: "gastei 50 no mercado no pix nubank", "comprei remédio de 30 no cartão"):
+   • Chame IMEDIATAMENTE a ferramenta 'criar_transacao' preenchendo todos os parâmetros disponíveis.
+
+4. SE O USUÁRIO PERGUNTAR SALDO:
+   • Use 'consultar_saldo'.
+
+5. SE O USUÁRIO PERGUNTAR OS GASTOS DO MÊS:
+   • Use 'consultar_gastos_mes'.
+
+6. SE O USUÁRIO PERGUNTAR SOBRE LIMITE / TETO OU QUANTO AINDA PODE GASTAR:
+   • Use 'consultar_limite_gastos'.
+
+7. SE O USUÁRIO PEDIR PARA DEFINIR OU ALTERAR O LIMITE MENSAL:
+   • Use 'definir_limite_gastos'.
+
+8. SE O USUÁRIO PERGUNTAR GASTOS DE HOJE, FATURA DO CARTÃO OU PARCELAS FUTURAS:
+   • Use 'consultar_faturas_compromissos'.
+
+9. HORÁRIO E DATA: Considere sempre o fuso horário de Brasília (${hojeBrasilia}). Ao registrar uma transação realizada hoje, utilize ${dataIsoBrasilia}.
+10. SEGURANÇA: Nunca divulgue credenciais, chaves de API, senhas ou IDs técnicos de banco.`;
 
   try {
     const response = await modelWithTools.invoke([
@@ -417,7 +577,6 @@ Suas diretrizes:
       const selectedTool = tools.find((t) => t.name === toolCall.name);
 
       if (selectedTool) {
-        // Executa a tool
         const toolResult = await (selectedTool as any).invoke(toolCall.args);
         return String(toolResult);
       }
@@ -427,6 +586,6 @@ Suas diretrizes:
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : 'Erro ao processar mensagem com IA';
     console.error('Erro no agente LangChain:', err);
-    return `Desculpe, ocorreu uma instabilidade ao processar sua solicitação: ${errorMsg}`;
+    return `⚠️ Desculpe, ocorreu uma instabilidade ao processar sua solicitação: ${errorMsg}`;
   }
 }
