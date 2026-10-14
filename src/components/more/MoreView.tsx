@@ -19,11 +19,12 @@ import {
   CheckCircle2,
   MessageSquare,
   CalendarClock,
+  FileText,
 } from 'lucide-react';
 
 interface MoreViewProps {
   onNavigateToTab: (
-    tab: 'overview' | 'transactions' | 'accounts' | 'cards' | 'categories' | 'reports' | 'assistant' | 'bills'
+    tab: 'overview' | 'transactions' | 'accounts' | 'cards' | 'categories' | 'reports' | 'assistant' | 'bills' | 'invoices'
   ) => void;
 }
 
@@ -98,6 +99,25 @@ export const MoreView: React.FC<MoreViewProps> = ({ onNavigateToTab }) => {
               <span className="text-sm font-bold text-slate-800 block">Assistente IA</span>
               <span className="text-xs text-slate-400 block">
                 Registre gastos conversando, com memória e parcelas no cartão
+              </span>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all" />
+        </button>
+
+        {/* Item: Faturas dos cartões */}
+        <button
+          onClick={() => onNavigateToTab('invoices')}
+          className="w-full flex items-center justify-between p-4 hover:bg-slate-50/70 transition-colors cursor-pointer text-left group"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0">
+              <FileText className="w-5 h-5 stroke-[2.2]" />
+            </div>
+            <div>
+              <span className="text-sm font-bold text-slate-800 block">Faturas</span>
+              <span className="text-xs text-slate-400 block">
+                Veja cada fatura por cartão e registre o pagamento
               </span>
             </div>
           </div>

@@ -121,7 +121,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           type: 'card_invoice',
           title: `💳 Fatura do ${cardName}`,
           body: `A fatura de R$ ${formatBRL(invoice.total)} (${invoice.count} lançamento${invoice.count === 1 ? '' : 's'}) ${whenLabel(kind, invoice.dueDate, today)}.`,
-          link_tab: 'cards',
+          link_tab: 'invoices',
           dedupe_key: `card:${invoice.cardId}:${invoice.dueDate}:${kind}`,
         });
       }

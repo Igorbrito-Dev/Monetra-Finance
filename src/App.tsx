@@ -11,6 +11,7 @@ import { ReportsView } from './components/dashboard/ReportsView';
 import { MoreView } from './components/more/MoreView';
 import { AgentChatView } from './components/chat/AgentChatView';
 import { RecurringBillsView } from './components/recurring/RecurringBillsView';
+import { InvoicesView } from './components/invoices/InvoicesView';
 import { TransactionModal } from './components/transactions/TransactionModal';
 import { useCategories } from './hooks/useCategories';
 import { useAccounts } from './hooks/useAccounts';
@@ -77,6 +78,12 @@ const DashboardContent: React.FC = () => {
         {activeTab === 'assistant' && (
           <div className="animate-in fade-in duration-200">
             <AgentChatView />
+          </div>
+        )}
+
+        {activeTab === 'invoices' && (
+          <div className="animate-in fade-in duration-200">
+            <InvoicesView />
           </div>
         )}
 

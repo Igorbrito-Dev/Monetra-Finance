@@ -12,6 +12,7 @@ import {
   BarChart3,
   MessageSquare,
   CalendarClock,
+  FileText,
   MoreHorizontal,
   Plus,
   Bot,
@@ -27,6 +28,7 @@ export type ActiveTab =
   | 'reports'
   | 'assistant'
   | 'bills'
+  | 'invoices'
   | 'more';
 
 interface AppNavbarProps {
@@ -52,6 +54,7 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
     { id: 'accounts' as const, label: 'Contas', icon: Wallet },
     { id: 'cards' as const, label: 'Cartões', icon: CreditCard },
     { id: 'categories' as const, label: 'Categorias', icon: Tag },
+    { id: 'invoices' as const, label: 'Faturas', icon: FileText },
     { id: 'bills' as const, label: 'Contas fixas', icon: CalendarClock },
     { id: 'assistant' as const, label: 'Assistente', icon: MessageSquare },
     { id: 'reports' as const, label: 'Relatórios', icon: BarChart3 },
@@ -224,7 +227,8 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
               activeTab === 'reports' ||
               activeTab === 'categories' ||
               activeTab === 'assistant' ||
-              activeTab === 'bills'
+              activeTab === 'bills' ||
+              activeTab === 'invoices'
                 ? 'text-emerald-600'
                 : 'text-slate-400 hover:text-slate-600'
             }`}

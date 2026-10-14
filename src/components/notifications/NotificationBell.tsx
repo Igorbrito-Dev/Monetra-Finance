@@ -8,7 +8,7 @@ interface NotificationBellProps {
 }
 
 const VALID_TABS: ActiveTab[] = [
-  'overview', 'transactions', 'accounts', 'cards', 'categories', 'reports', 'assistant', 'bills', 'more',
+  'overview', 'transactions', 'accounts', 'cards', 'categories', 'reports', 'assistant', 'bills', 'invoices', 'more',
 ];
 
 function formatWhen(iso: string): string {
