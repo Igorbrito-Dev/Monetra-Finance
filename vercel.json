@@ -1,0 +1,16 @@
+{
+  "functions": {
+    "api/telegram/webhook.ts": {
+      "includeFiles": "node_modules/openai/**"
+    },
+    "api/**/*.ts": {
+      "includeFiles": "node_modules/openai/**"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/((?!api/.*).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
